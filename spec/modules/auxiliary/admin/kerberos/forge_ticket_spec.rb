@@ -12,15 +12,10 @@ RSpec.describe 'kerberos keytab' do
   end
 
   before(:each) do
-    Timecop.freeze(Time.parse('Jul 15, 2022 12:33:40.000000000 GMT'))
     subject.datastore['VERBOSE'] = true
     allow(driver).to receive(:input).and_return(driver_input)
     allow(driver).to receive(:output).and_return(driver_output)
     subject.init_ui(driver_input, driver_output)
-  end
-
-  after do
-    Timecop.return
   end
 
   describe '#run' do
@@ -31,11 +26,16 @@ RSpec.describe 'kerberos keytab' do
         subject.datastore['DOMAIN_SID'] = 'S-1-5-21-1266190811-2419310613-1856291569'
         subject.datastore['NTHASH'] = '767400b2c71afa35a5dca216f2389cd9'
         subject.datastore['USER'] = 'Administrator'
+        subject.datastore['RPORT'] = ''
         # https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-dtyp/81d92bba-d22b-4a8c-908a-554ab29148ab
         subject.datastore['EXTRA_SIDS'] = ' S-1-18-1,  S-1-5-21-1266190811-2419310613-1856291569-519, '
         subject.datastore['SessionKey'] = 'A' * 16
 
-        subject.run
+        expect(framework.db.active).to be(true)
+        Timecop.freeze(Time.parse('Jul 15, 2022 12:33:40.000000000 GMT')) do
+          subject.run
+        end
+
 
         ticket_save_path = @output.join("\n")[/Cache ticket saved to (.*)$/, 1]
         expect(@output.join("\n")).to match_table <<~TABLE
@@ -50,15 +50,15 @@ RSpec.describe 'kerberos keytab' do
               Ticket etype: 23 (RC4_HMAC)
               Key: 41414141414141414141414141414141
               Subkey: false
-              Ticket Length: 1014
+              Ticket Length: 1086
               Ticket Flags: 0x50e00000 (FORWARDABLE, PROXIABLE, RENEWABLE, INITIAL, PRE_AUTHENT)
               Addresses: 0
               Authdatas: 0
               Times:
-                Auth time: #{Time.parse('2022-07-15 13:33:40 +0100').to_time}
-                Start time: #{Time.parse('2022-07-15 13:33:40 +0100').to_time}
-                End time: #{Time.parse('2032-07-12 13:33:40 +0100').to_time}
-                Renew Till: #{Time.parse('2032-07-12 13:33:40 +0100').to_time}
+                Auth time: #{Time.parse('2022-07-15 13:33:40 +0100').localtime}
+                Start time: #{Time.parse('2022-07-15 13:33:40 +0100').localtime}
+                End time: #{Time.parse('2032-07-12 13:33:40 +0100').localtime}
+                Renew Till: #{Time.parse('2032-07-12 13:33:40 +0100').localtime}
               Ticket:
                 Ticket Version Number: 5
                 Realm: DEMO.LOCAL
@@ -68,10 +68,10 @@ RSpec.describe 'kerberos keytab' do
                   Key Version Number: 2
                   Decrypted (with key: 767400b2c71afa35a5dca216f2389cd9):
                     Times:
-                      Auth time: #{Time.parse('2022-07-15 12:33:40 UTC').to_time}
-                      Start time: #{Time.parse('2022-07-15 12:33:40 UTC').to_time}
-                      End time: #{Time.parse('2032-07-12 12:33:40 UTC').to_time}
-                      Renew Till: #{Time.parse('2032-07-12 12:33:40 UTC').to_time}
+                      Auth time: #{Time.parse('2022-07-15 12:33:40 UTC').localtime}
+                      Start time: #{Time.parse('2022-07-15 12:33:40 UTC').localtime}
+                      End time: #{Time.parse('2032-07-12 12:33:40 UTC').localtime}
+                      Renew Till: #{Time.parse('2032-07-12 12:33:40 UTC').localtime}
                     Client Addresses: 0
                     Transited: tr_type: 0, Contents: ""
                     Client Name: 'Administrator'
@@ -81,7 +81,7 @@ RSpec.describe 'kerberos keytab' do
                     Flags: 0x50e00000 (FORWARDABLE, PROXIABLE, RENEWABLE, INITIAL, PRE_AUTHENT)
                     PAC:
                       Validation Info:
-                        Logon Time: #{Time.parse('2022-07-15 13:33:40 +0100').to_time}
+                        Logon Time: #{Time.parse('2022-07-15 13:33:40 +0100').localtime}
                         Logoff Time: Never Expires (inf)
                         Kick Off Time: Never Expires (inf)
                         Password Last Set: No Time Set (0)
@@ -184,11 +184,18 @@ RSpec.describe 'kerberos keytab' do
                         Logon Domain Name: 'DEMO.LOCAL'
                       Client Info:
                         Name: 'Administrator'
-                        Client ID: #{Time.parse('2022-07-15 13:33:40 +0100').to_time}
+                        Client ID: #{Time.parse('2022-07-15 13:33:40 +0100').localtime}
+                      Pac Requestor:
+                        SID: S-1-5-21-1266190811-2419310613-1856291569-500
+                      Pac Attributes:
+                        Flag length: 2
+                        Flags: 1
+                          .... .... .... .... .... .... .... ..0. Pac Was Requested: The PAC_WAS_REQUESTED bit is NOT SET
+                          .... .... .... .... .... .... .... ...1 Pac Was Given Implicitly: The PAC_WAS_GIVEN_IMPLICITLY bit is SET
                       Pac Server Checksum:
-                        Signature: 6dc9bd5369b0defac778b349e298012a
+                        Signature: 0e081d0f36228b8b592c6947c8c96435
                       Pac Privilege Server Checksum:
-                        Signature: 0ac8624ae3cc7cd3750fcf902d006b5f
+                        Signature: 42ecbbbdeb8dae3fe42f7ac5630f3af3
         TABLE
         expect(ticket_save_path).to_not be_nil
       end

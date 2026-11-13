@@ -1,5 +1,4 @@
 # -*- coding: binary -*-
-require 'metasm'
 
 module Msf
 
@@ -159,7 +158,12 @@ class Payload < Msf::Module
   # This method returns an optional cached size value
   #
   def self.cached_size
-    csize = (const_defined?('CachedSize')) ? const_get('CachedSize') : nil
+    csize = const_defined?('CachedSize') ? const_get('CachedSize') : nil
+    if ancestors.include?(Msf::Payload::Stager)
+      csize_overrides = const_defined?('CachedSizeOverrides') ? const_get('CachedSizeOverrides') : {}
+      csize = csize_overrides.fetch(self.refname, csize)
+    end
+
     csize == :dynamic ? nil : csize
   end
 
@@ -167,7 +171,12 @@ class Payload < Msf::Module
   # This method returns whether the payload generates variable-sized output
   #
   def self.dynamic_size?
-    csize = (const_defined?('CachedSize')) ? const_get('CachedSize') : nil
+    csize = const_defined?('CachedSize') ? const_get('CachedSize') : nil
+    if ancestors.include?(Msf::Payload::Stager)
+      csize_overrides = const_defined?('CachedSizeOverrides') ? const_get('CachedSizeOverrides') : {}
+      csize = csize_overrides.fetch(self.refname, csize)
+    end
+
     csize == :dynamic
   end
 
@@ -288,9 +297,9 @@ class Payload < Msf::Module
 
   #
   # Generates the payload and returns the raw buffer to the caller.
-  #
-  def generate(_opts = {})
-    internal_generate
+  # @param opts [Hash]
+  def generate(opts = {})
+    internal_generate(opts)
   end
 
   #
@@ -475,20 +484,12 @@ class Payload < Msf::Module
     lhost = mod.datastore['LHOST'] || Rex::Socket.source_address(mod.datastore['RHOST'] || '50.50.50.50')
 
     configure_payload = lambda do |payload|
-      if mod.datastore.is_a?(Msf::DataStoreWithFallbacks)
-        payload_defaults = { 'PAYLOAD' => payload }
+      # Directly set the payload value to override any existing user-defined value
+      mod.datastore['PAYLOAD'] = payload
 
-        # Set LHOST if this is a reverse payload
-        if payload.index('reverse')
-          payload_defaults['LHOST'] = lhost
-        end
-        mod.datastore.import_defaults_from_hash(payload_defaults, imported_by: 'choose_payload')
-      else
-        mod.datastore['PAYLOAD'] = payload
-        # Set LHOST if this is a reverse payload
-        if payload.index('reverse')
-          mod.datastore['LHOST'] = lhost
-        end
+      # Set LHOST if this is a reverse payload
+      if payload.index('reverse')
+        mod.datastore['LHOST'] = lhost
       end
 
       payload
@@ -502,8 +503,20 @@ class Payload < Msf::Module
     # XXX: This approach is subpar, and payloads should really be ranked!
     preferred_payloads = [
       # These payloads are generally reliable and common enough in practice
+      'windows/meterpreter/reverse_tcp',  # Native Windows Meterpreter (no fetch wrapper)
+      # Prefer HTTP fetch over FTP fetch for CMD payloads (more reliable, less likely to be blocked)
+      '/http/x64/meterpreter/reverse_tcp',
+      '/https/x64/meterpreter/reverse_tcp',
+      '/http/x86/meterpreter/reverse_tcp',
+      '/https/x86/meterpreter/reverse_tcp',
+      'x64/meterpreter/reverse_tcp',      # Generic x64 meterpreter (will match any fetch method)
+      'x86/meterpreter/reverse_tcp',      # Generic x86 meterpreter (will match any fetch method)
       '/meterpreter/reverse_tcp',
       '/shell/reverse_tcp',
+      'java/meterpreter/reverse_tcp',     # Java Meterpreter (staged)
+      'java/meterpreter_reverse_tcp',     # Java Meterpreter (stageless)
+      'java/jsp_shell_reverse_tcp',       # Java JSP shell (for JSP delivery)
+      'java/shell_reverse_tcp',
       'cmd/unix/reverse_bash',
       'cmd/unix/reverse_netcat',
       'cmd/windows/powershell_reverse_tcp',
@@ -525,7 +538,7 @@ class Payload < Msf::Module
   end
 
   #
-  # A placeholder stub, to be overriden by mixins
+  # A placeholder stub, to be overridden by mixins
   #
   def apply_prepends(raw)
     raw
@@ -611,9 +624,10 @@ protected
   #
   # @see PayloadSet#check_blob_cache
   # @param asm [String] Assembly code to be assembled into a raw payload
+  # @param opts [Hash]
   # @return [String] The final, assembled payload
   # @raise ArgumentError if +asm+ is blank
-  def build(asm, off={})
+  def build(asm, off={}, opts = {})
     if(asm.nil? or asm.empty?)
       raise ArgumentError, "Assembly must not be empty"
     end
@@ -644,7 +658,7 @@ protected
     end
 
     # Assemble the payload from the assembly
-    a = self.arch
+    a = opts[:arch] || self.arch
     if a.kind_of? Array
       a = self.arch.first
     end
@@ -677,11 +691,11 @@ protected
   #
   # Generate the payload using our local payload blob and offsets
   #
-  def internal_generate
+  def internal_generate(opts = {})
     # Build the payload, either by using the raw payload blob defined in the
     # module or by actually assembling it
     if assembly and !assembly.empty?
-      raw = build(assembly, offsets)
+      raw = build(assembly, offsets, opts)
     else
       raw = payload.dup
     end

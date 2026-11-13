@@ -48,6 +48,7 @@ module Msf
     include Msf::Module::Author
     include Msf::Module::Compatibility
     include Msf::Module::DataStore
+    include Msf::Module::Failure
     include Msf::Module::FullName
     include Msf::Module::ModuleInfo
     include Msf::Module::ModuleStore
@@ -83,6 +84,19 @@ module Msf
       # The path from which the module was loaded.
       #
       attr_accessor :file_path
+
+      # @return [String, nil] Reference name of the payload being adapted
+      attr_accessor :adapted_refname
+
+      # @return [String, nil] Reference name of the payloads adapter
+      attr_accessor :adapter_refname
+
+      # @return [String, nil] Reference name of the payload stage
+      attr_accessor :stage_refname
+
+      # @return [String, nil] Reference name of the payloads stager
+      attr_accessor :stager_refname
+
     end
 
     #
@@ -100,7 +114,8 @@ module Msf
       @module_info_copy = info.dup
 
       self.module_info = info
-      generate_uuid
+      # Initialize UUID for RPC compatibility
+      uuid
 
       set_defaults
 
@@ -111,10 +126,10 @@ module Msf
       info_fixups
 
       # Transform some of the fields to arrays as necessary
-      self.author = Msf::Author.transform(module_info['Author'])
-      self.arch = Rex::Transformer.transform(module_info['Arch'], Array, [ String ], 'Arch')
-      self.platform = PlatformList.transform(module_info['Platform'])
-      self.references = Rex::Transformer.transform(module_info['References'], Array, [ SiteReference, Reference ], 'Ref')
+      self.author = Msf::Author.transform(merge_module_info_with_target_info(module_info, 'Author'))
+      self.arch = Rex::Transformer.transform(merge_module_info_with_target_info(module_info, 'Arch'), Array, [ String ], 'Arch')
+      self.platform = PlatformList.transform(merge_module_info_with_target_info(module_info, 'Platform'))
+      self.references = Rex::Transformer.transform(merge_module_info_with_target_info(module_info, 'References'), Array, [ SiteReference, Reference ], 'Ref')
 
       # Create and initialize the option container for this module
       self.options = Msf::OptionContainer.new
@@ -123,7 +138,7 @@ module Msf
       self.options.add_evasion_options(info['EvasionOptions'], self.class)
 
       # Create and initialize the data store for this module
-      self.datastore = ModuleDataStore.new(self)
+      self.datastore = Msf::ModuleDataStore.new(self)
 
       # Import default options into the datastore
       import_defaults
@@ -205,6 +220,26 @@ module Msf
     #
     def file_path
       self.class.file_path
+    end
+
+    # @return [String, nil] Reference name of the payload being adapted
+    def adapted_refname
+      self.class.adapted_refname
+    end
+
+    # @return [String, nil] Reference name of the payloads adapter
+    def adapter_refname
+      self.class.adapter_refname
+    end
+
+    # @return [String, nil] Reference name of the payload stage
+    def stage_refname
+      self.class.stage_refname
+    end
+
+    # @return [String, nil] Reference name of the payloads stager
+    def stager_refname
+      self.class.stager_refname
     end
 
     #
@@ -300,6 +335,10 @@ module Msf
       false
     end
 
+    def default_options
+      self.module_info['DefaultOptions']
+    end
+
     def required_cred_options
       @required_cred_options ||= lambda {
         self.options.select { |name, opt|
@@ -385,6 +424,14 @@ module Msf
     attr_accessor :job_id
 
     #
+    # The run UUID produced by the most recent invocation of this module via
+    # one of the Simple wrappers (exploit_simple / run_simple). Mirrors the
+    # value reported to the job listener and tracked by
+    # Msf::RPC::RpcJobStatusTracker.
+    #
+    attr_accessor :run_uuid
+
+    #
     # The last exception to occur using this module
     #
     attr_accessor :error
@@ -416,6 +463,16 @@ module Msf
         'Notes'       => {}
       }.update(self.module_info)
       self.module_store = {}
+    end
+
+    def merge_module_info_with_target_info(module_info, key)
+      entries = Array.wrap(module_info[key])
+      if (module_targets = module_info['Targets'])
+        module_targets.each do |_target_name, target_info|
+          entries += Array.wrap(target_info[key])
+        end
+      end
+      entries.uniq
     end
 
     attr_writer   :platform, :references # :nodoc:

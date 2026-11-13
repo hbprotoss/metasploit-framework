@@ -123,7 +123,7 @@ RSpec.describe Rex::Post::Meterpreter::Tlv do
 
     context "Any non group TLV_TYPE" do
       subject(:tlv_types){
-        excludedTypes = ["TLV_TYPE_ANY", "TLV_TYPE_EXCEPTION", "TLV_TYPE_CHANNEL_DATA_GROUP", "TLV_TYPE_TRANS_GROUP"]
+        excludedTypes = ["TLV_TYPE_ANY", "TLV_TYPE_EXCEPTION", "TLV_TYPE_CHANNEL_DATA_GROUP", "TLV_TYPE_C2", "TLV_TYPE_EXTENSION", "TLV_TYPE_C2_GET", "TLV_TYPE_C2_POST"]
         typeList = []
         Rex::Post::Meterpreter.constants.each do |type|
           typeList << type.to_s if type.to_s.include?("TLV_TYPE") && !excludedTypes.include?(type.to_s)
@@ -276,7 +276,7 @@ RSpec.describe Rex::Post::Meterpreter::GroupTlv do
   end
 
   context "#add_tlv" do
-    it "should add to the tlvs array when given basic tlv paramaters" do
+    it "should add to the tlvs array when given basic tlv parameters" do
       group_tlv.add_tlv(Rex::Post::Meterpreter::TLV_TYPE_STRING,"test")
       expect(group_tlv.tlvs.first.type).to eq Rex::Post::Meterpreter::TLV_TYPE_STRING
       expect(group_tlv.tlvs.first.value).to eq "test"
@@ -352,7 +352,7 @@ RSpec.describe Rex::Post::Meterpreter::GroupTlv do
 
 
     context "#from_r" do
-      it "should build the TLV group when given the propper raw bytes" do
+      it "should build the TLV group when given the proper raw bytes" do
         group_tlv.reset
         group_tlv.from_r( @raw_group)
         expect(group_tlv.tlvs[0].inspect).to eq "#<Rex::Post::Meterpreter::Tlv type=STRING          meta=STRING     value=\"test\">"
@@ -379,7 +379,7 @@ RSpec.describe Rex::Post::Meterpreter::GroupTlv do
         expect(group_tlv.get_tlvs(Rex::Post::Meterpreter::TLV_TYPE_BOOL)).to eq []
       end
 
-      it "should return an empty array for a nonexistant TLV type" do
+      it "should return an empty array for a nonexistent TLV type" do
         expect(group_tlv.get_tlvs(55555555)).to eq []
       end
     end

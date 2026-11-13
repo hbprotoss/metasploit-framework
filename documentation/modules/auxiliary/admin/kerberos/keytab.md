@@ -22,7 +22,7 @@ The following actions are supported:
 ### List
 
 ```msf
-msf6 auxiliary(admin/kerberos/keytab) > run keytab_file=./example.keytab
+msf auxiliary(admin/kerberos/keytab) > run keytab_file=./example.keytab
 
 Keytab entries
 ==============
@@ -39,7 +39,7 @@ Keytab entries
 Adding an entry using a known password hash/key which has been extracted from a Domain Controller - for instance by using the `auxiliary/gather/windows_secrets_dump` module:
 
 ```msf
-msf6 auxiliary(admin/kerberos/keytab) > run action=ADD keytab_file=./example.keytab principal=krbtgt realm=DEMO.LOCAL enctype=AES256 key=e1c5500ffb883e713288d8037651821b9ecb0dfad89e01d1b920fe136879e33c
+msf auxiliary(admin/kerberos/keytab) > run action=ADD keytab_file=./example.keytab principal=krbtgt realm=DEMO.LOCAL enctype=AES256 key=e1c5500ffb883e713288d8037651821b9ecb0dfad89e01d1b920fe136879e33c
 
 [*] modifying existing keytab
 [+] keytab entry added to ./example.keytab
@@ -48,7 +48,7 @@ msf6 auxiliary(admin/kerberos/keytab) > run action=ADD keytab_file=./example.key
 Adding entries using a specified password:
 
 ```msf
-msf6 auxiliary(admin/kerberos/keytab) > run action=ADD keytab_file=./example.keytab principal=Administrator realm=DEMO.LOCAL enctype=ALL password=p4$$w0rd
+msf auxiliary(admin/kerberos/keytab) > run action=ADD keytab_file=./example.keytab principal=Administrator realm=DEMO.LOCAL enctype=ALL password=p4$$w0rd
 
 [*] modifying existing keytab
 [*] Generating key with salt: DEMO.LOCALAdministrator. The SALT option can be set manually
@@ -61,9 +61,9 @@ Export Kerberos encryption keys stored in the Metasploit database to a keytab fi
 
 ```msf
 # Secrets dump
-msf6 > use auxiliary/gather/windows_secrets_dump
-msf6 auxiliary(gather/windows_secrets_dump) > run smbuser=Administrator smbpass=p4$$w0rd rhosts=192.168.123.13
-... ommitted ...
+msf > use auxiliary/gather/windows_secrets_dump
+msf auxiliary(gather/windows_secrets_dump) > run smbuser=Administrator smbpass=p4$$w0rd rhosts=192.168.123.13
+... omitted ...
 # Kerberos keys:
 Administrator:aes256-cts-hmac-sha1-96:56c3bf6629871a4e4b8ec894f37489e823bbaecc2a0a4a5749731afa9d158e01
 Administrator:aes128-cts-hmac-sha1-96:df990c21c4e8ea502efbbca3aae435ea
@@ -72,12 +72,12 @@ Administrator:des-cbc-crc:ad49d9d92f5da170
 krbtgt:aes256-cts-hmac-sha1-96:e1c5500ffb883e713288d8037651821b9ecb0dfad89e01d1b920fe136879e33c
 krbtgt:aes128-cts-hmac-sha1-96:ba87b2bc064673da39f40d37f9daa9da
 krbtgt:des-cbc-md5:3ddf2f627c4cbcdc
-... ommitted ...
+... omitted ...
 [*] Auxiliary module execution completed
 
 # Export to keytab
-msf6 auxiliary(gather/windows_secrets_dump) > use admin/kerberos/keytab
-msf6 auxiliary(admin/kerberos/keytab) > run action=EXPORT keytab_file=./example.keytab
+msf auxiliary(gather/windows_secrets_dump) > use admin/kerberos/keytab
+msf auxiliary(admin/kerberos/keytab) > run action=EXPORT keytab_file=./example.keytab
 [+] keytab saved to ./example.keytab
 Keytab entries
 ==============
@@ -94,7 +94,7 @@ Keytab entries
  1     18 (AES256)       krbtgt@adf3.local                           e1c5500ffb883e713288d8037651821b9ecb0dfad89e01d1b920fe136879e33c  1970-01-01 01:00:00 +0100
  1     17 (AES128)       krbtgt@adf3.local                           ba87b2bc064673da39f40d37f9daa9da                                  1970-01-01 01:00:00 +0100
  1     3  (DES_CBC_MD5)  krbtgt@adf3.local                           3ddf2f627c4cbcdc                                                  1970-01-01 01:00:00 +0100
-... ommitted ...
+... omitted ...
 [*] Auxiliary module execution completed
 ```
 
@@ -168,7 +168,7 @@ tgs-req
                   ^^^^^^^^^^^^^^ authenticator value now decrypted using the previously generated keytab file
 ```
 
-If you have exported the `krbtgt` account to the keytab file - Wireshark will also decrypt the TGT ticket itsel. If not - Wireshark
+If you have exported the `krbtgt` account to the keytab file - Wireshark will also decrypt the TGT ticket itself. If not - Wireshark
 will generate warnings about being unable to decrypt the TGT ticket which is signed using the krbtgt account.
 
 Additional details: https://wiki.wireshark.org/Kerberos

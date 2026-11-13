@@ -108,7 +108,7 @@ class MetasploitModule < Msf::Auxiliary
     end
 
     if res.nil?
-      return Exploit::CheckCode::Unknown('No response recieved from the target!')
+      return Exploit::CheckCode::Unknown('No response received from the target!')
     elsif res && res.code == 200
       xml_res = res.get_xml_document
       print_status('Following users are available for password reset...')
@@ -118,9 +118,9 @@ class MetasploitModule < Msf::Auxiliary
       user_array.each do |user|
         print_status("USERNAME:#{user&.at_css('userName')&.content} | ID:#{user&.at_css('id')&.content} | ROLE:#{user&.at_css('userLevel')&.content}")
       end
-      return Exploit::CheckCode::Vulnerable
+      return Exploit::CheckCode::Vulnerable('Unauthenticated access to user credentials succeeded')
     else
-      return Exploit::CheckCode::Safe
+      return Exploit::CheckCode::Safe("Target returned HTTP #{res.code}")
     end
   end
 

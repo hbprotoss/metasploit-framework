@@ -12,7 +12,7 @@ module MetasploitModule
       update_info(
         info,
         'Name' => 'HTTPS Fetch',
-        'Description' => 'Fetch and Execute an x64 payload from an https server',
+        'Description' => 'Fetch and execute an x64 payload from an HTTPS server.',
         'Author' => 'Brendan Watters',
         'Platform' => 'win',
         'Arch' => ARCH_CMD,
@@ -20,6 +20,13 @@ module MetasploitModule
         'AdaptedArch' => ARCH_X64,
         'AdaptedPlatform' => 'win'
       )
+    )
+    deregister_options('FETCH_COMMAND')
+    register_options(
+      [
+        # Certutil does not support insecure mode
+        Msf::OptEnum.new('FETCH_COMMAND', [true, 'Command to fetch payload', 'CURL', %w[CURL]])
+      ]
     )
   end
 end

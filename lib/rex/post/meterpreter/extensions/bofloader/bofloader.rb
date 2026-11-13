@@ -2,8 +2,9 @@
 
 require 'rex/post/meterpreter/extensions/bofloader/tlv'
 require 'rex/post/meterpreter/extensions/bofloader/command_ids'
+require 'rex/post/meterpreter/extensions/bofloader/cna_argument_parser'
+require 'rex/post/meterpreter/extensions/bofloader/cna_parser'
 require 'rexml/document'
-require 'set'
 
 module Rex
   module Post
@@ -45,18 +46,18 @@ module Rex
               binary = binary.bytes if binary.is_a? String
               b_length = binary.length
               binary = [b_length] + binary
-              buf = binary.pack("<Ic#{b_length}")
+              buf = binary.pack("I<c#{b_length}")
               @size += buf.length
               @buffer << buf
             end
 
             def add_int(dint)
-              @buffer << [dint.to_i].pack('<I')
+              @buffer << [dint.to_i].pack('I<')
               @size += 4
             end
 
             def add_short(short)
-              @buffer << [short.to_i].pack('<s')
+              @buffer << [short.to_i].pack('s<')
               @size += 2
             end
 
@@ -65,7 +66,7 @@ module Rex
               str << 0x00 # Null terminated strings...
               s_length = str.length
               str = [s_length] + str
-              buf = str.pack("<Ic#{s_length}")
+              buf = str.pack("I<c#{s_length}")
               @size += buf.length
               @buffer << buf
             end
@@ -75,13 +76,13 @@ module Rex
               wstr << 0x00 << 0x00 # Null terminated wide string
               s_length = wstr.length
               wstr = [s_length] + wstr
-              buf = wstr.pack("<Ic#{s_length}")
+              buf = wstr.pack("I<c#{s_length}")
               @size += buf.length
               @buffer << buf
             end
 
             def finalize_buffer
-              output = [@size].pack('<I') + @buffer
+              output = [@size].pack('I<') + @buffer
               reset
               output
             end
@@ -135,6 +136,7 @@ module Rex
             # @param client (see Extension#initialize)
             def initialize(client)
               super(client, 'bofloader')
+              @cna_catalog = { 'path' => nil, 'bofs' => {}, 'warnings' => [] }
 
               client.register_extension_aliases(
                 [
@@ -146,11 +148,78 @@ module Rex
               )
             end
 
+            # Returns the CNA catalog loaded in this Meterpreter session.
+            #
+            # @return [Hash] Loaded script path, BOF definitions, and warnings.
+            attr_reader :cna_catalog
+
+            # Loads compatible BOF aliases from an Aggressor script.
+            #
+            # @param path [String] Local CNA script path.
+            # @return [Hash] The new CNA catalog.
+            def load_cna(path)
+              catalog = CnaParser.parse(path: ::File.expand_path(path))
+              @cna_catalog = catalog
+            end
+
+            # Reloads the currently loaded Aggressor script.
+            #
+            # @return [Hash] The new CNA catalog.
+            def reload_cna
+              raise CnaParser::Error, 'No CNA script is loaded.' unless @cna_catalog['path']
+
+              load_cna(@cna_catalog['path'])
+            end
+
+            # Unloads all CNA-backed BOF aliases.
+            #
+            # @return [Hash] The empty CNA catalog.
+            def unload_cna
+              @cna_catalog = { 'path' => nil, 'bofs' => {}, 'warnings' => [] }
+            end
+
+            # Looks up one CNA-backed BOF.
+            #
+            # @param name [String] CNA alias name.
+            # @return [Hash, nil] BOF definition when found.
+            def cna_bof(name)
+              @cna_catalog['bofs'][name]
+            end
+
+            # Resolves one CNA alias into native BOF execution input.
+            #
+            # @param name [String] CNA alias name.
+            # @param arguments [Array<String>] Alias positional arguments.
+            # @return [Hash] BOF bytes, packed values, format, and entry point.
+            def cna_invocation(name, arguments: [])
+              definition = cna_bof(name)
+              raise CnaParser::Error, "Unknown CNA BOF: #{name}" unless definition
+
+              bof_path = definition['files'][client.arch]
+              unless bof_path && ::File.file?(bof_path) && ::File.readable?(bof_path)
+                raise CnaParser::Error, "CNA alias '#{name}' has no readable BOF for #{client.arch}."
+              end
+
+              parsed = CnaArgumentParser.new(arguments: definition['arguments']).parse(arguments)
+              {
+                'data' => ::File.binread(bof_path),
+                'entry' => definition['entry'],
+                'format' => parsed['format'],
+                'values' => parsed['values']
+              }
+            end
+
+            # Executes a BOF in the current Meterpreter session.
+            #
+            # @param bof_data [String] COFF bytes.
+            # @param args_format [String, nil] Cobalt Strike bof_pack format.
+            # @param args [Array, nil] Values corresponding to args_format.
+            # @param entry [String] Exported BOF entry point.
+            # @return [String, nil] Captured BOF output.
             def execute(bof_data, args_format: nil, args: nil, entry: 'go')
               request = Packet.create_request(COMMAND_ID_BOFLOADER_EXECUTE)
 
               # Pack up beacon object file data and arguments into one single binary blob
-              # Hardcode the entrypoint to "go" (CobaltStrike approved)
               bof = BofPack.new
               packed_args = bof.bof_pack(args_format, args)
 

@@ -28,9 +28,7 @@ module Metasploit
             credential: credential,
             status: Metasploit::Model::Login::Status::INCORRECT,
             proof: nil,
-            host: host,
-            port: port,
-            protocol: 'tcp'
+            **service_as_result(service_opts)
           }
 
           begin
@@ -63,12 +61,14 @@ module Metasploit
             return "Unable to connect to target"
           end
 
+          report_service(service_opts)
+
           false
         end
 
         # Sends a HTTP request with Rex
         #
-        # @param (see Rex::Proto::Http::Resquest#request_raw)
+        # @param (see Rex::Proto::Http::Request#request_raw)
         # @return [Rex::Proto::Http::Response] The HTTP response
         def send_request(opts)
           res = super(opts)
@@ -142,6 +142,10 @@ module Metasploit
           end
 
           {:status => Metasploit::Model::Login::Status::INCORRECT, :proof => res.body}
+        end
+
+        def service_opts
+          build_service_opts('chef_webui')
         end
 
       end

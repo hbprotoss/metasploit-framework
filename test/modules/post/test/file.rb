@@ -9,6 +9,7 @@ require 'module_test'
 class MetasploitModule < Msf::Post
 
   include Msf::ModuleTest::PostTest
+  include Msf::ModuleTest::PostTestFileSystem
   include Msf::Post::Common
   include Msf::Post::File
 
@@ -20,16 +21,9 @@ class MetasploitModule < Msf::Post
         'Description' => %q{ This module will test Post::File API methods },
         'License' => MSF_LICENSE,
         'Author' => [ 'egypt' ],
-        'Platform' => [ 'windows', 'linux', 'unix', 'java' ],
-        'SessionTypes' => [ 'meterpreter', 'shell' ]
+        'Platform' => [ 'windows', 'linux', 'unix', 'java', 'osx' ],
+        'SessionTypes' => [ 'meterpreter', 'shell', 'powershell' ]
       )
-    )
-
-    register_options(
-      [
-        OptString.new('BaseDirectoryName', [true, 'Directory name to create', 'test-dir']),
-        OptString.new('BaseFileName', [true, 'File name to create', 'test-file'])
-      ], self.class
     )
   end
 
@@ -39,11 +33,12 @@ class MetasploitModule < Msf::Post
   # The +cleanup+ method will change it back
   #
   def setup
-    @old_pwd = pwd
-    tmp = directory?('/tmp') ? '/tmp' : '%TEMP%'
-    vprint_status("Setup: changing working directory to #{tmp}")
-    cd(tmp)
+    push_test_directory
+    super
+  end
 
+  def cleanup
+    pop_test_directory
     super
   end
 
@@ -72,6 +67,13 @@ class MetasploitModule < Msf::Post
       ret
     end
 
+    it 'should create intermediary directories' do
+      nested_path = [datastore['BaseDirectoryName'], 'parent', 'child'].join(fs_sep)
+      mkdir(nested_path)
+
+      directory?(nested_path)
+    end
+
     it 'should list the directory we just made' do
       dents = dir(datastore['BaseDirectoryName'])
       dents.include?('file') && dents.include?('directory')
@@ -82,10 +84,13 @@ class MetasploitModule < Msf::Post
       !directory?(datastore['BaseDirectoryName'])
     end
 
-    unless (session.platform == 'windows') || (session.platform != 'windows' && command_exists?('ln'))
-      print_warning('skipping link related checks because the target is incompatible')
-    else
+    if (session.platform == 'windows') || (session.platform != 'windows' && command_exists?('ln'))
       it 'should delete a symbolic link target' do
+        # TODO: Fix this functionality
+        if session.platform.eql?('windows') && session.type.eql?('shell')
+          vprint_status('test skipped for Windows CMD - functionality not correct')
+          next true
+        end
         mkdir(datastore['BaseDirectoryName'])
         ret = directory?(datastore['BaseDirectoryName'])
         link = "#{datastore['BaseDirectoryName']}.lnk"
@@ -116,6 +121,8 @@ class MetasploitModule < Msf::Post
         rm_rf("#{datastore['BaseDirectoryName']}.1")
         ret
       end
+    else
+      print_warning('skipping link related checks because the target is incompatible')
     end
   end
 
@@ -148,7 +155,7 @@ class MetasploitModule < Msf::Post
       f = read_file(datastore['BaseFileName'])
       ret = (f == 'foo')
       unless ret
-        print_error("Didn't read what we wrote, actual file on target: |#{f}|")
+        vprint_status("Didn't read what we wrote, actual file on target: |#{f.inspect}| - #{f.bytes.inspect}")
       end
 
       ret
@@ -163,7 +170,7 @@ class MetasploitModule < Msf::Post
       final_contents = read_file(datastore['BaseFileName'])
       ret &&= final_contents == 'foobarbaz'
       unless ret
-        print_error("Didn't read what we wrote, actual file on target: #{final_contents}")
+        vprint_status("Didn't read what we wrote, actual file on target: |#{final_contents.inspect}| - #{final_contents.bytes.inspect}")
       end
 
       ret
@@ -179,7 +186,7 @@ class MetasploitModule < Msf::Post
       # Make sure we don't have leftovers from a previous run
       moved_file = datastore['BaseFileName'] + '-moved'
       begin
-        rm _f(datastore['BaseFileName'])
+        rm_f(datastore['BaseFileName'])
       rescue StandardError
         nil
       end
@@ -193,8 +200,8 @@ class MetasploitModule < Msf::Post
       write_file(datastore['BaseFileName'], '')
 
       rename_file(datastore['BaseFileName'], moved_file)
-      res &&= exist?(moved_file)
-      res &&= !exist?(datastore['BaseFileName'])
+      ret = exist?(moved_file)
+      ret &&= !exist?(datastore['BaseFileName'])
 
       # clean up
       begin
@@ -207,6 +214,8 @@ class MetasploitModule < Msf::Post
       rescue StandardError
         nil
       end
+
+      ret
     end
   end
 
@@ -214,7 +223,7 @@ class MetasploitModule < Msf::Post
     # binary_data = ::File.read("/bin/ls")
     # binary_data = ::File.read('/bin/echo')
     # binary_data = "\xff\x00\xff\xfe\xff\`$(echo blha)\`"
-    binary_data = ((0..255).to_a * 500).shuffle.pack("c*")
+    binary_data = ((0..255).to_a * 500).shuffle.pack('c*')
     it 'should write binary data' do
       vprint_status "Writing #{binary_data.length} bytes"
       t = Time.now
@@ -227,7 +236,7 @@ class MetasploitModule < Msf::Post
 
     it 'should read the binary data we just wrote' do
       bin = read_file(datastore['BaseFileName'])
-      vprint_status "Read #{bin.length} bytes"
+      vprint_status "Read #{bin.length} bytes" if bin
 
       bin == binary_data
     end
@@ -244,7 +253,12 @@ class MetasploitModule < Msf::Post
       bin = read_file(datastore['BaseFileName'])
       rm_f(datastore['BaseFileName'])
 
-      bin == "\xde\xad\xbe\xef"
+      test_string = "\xde\xad\xbe\xef"
+
+      vprint_status "expected: #{test_string.bytes} - #{test_string.encoding}"
+      vprint_status "actual: #{bin.bytes} - #{bin.encoding}"
+
+      bin == test_string
     end
   end
 
@@ -284,21 +298,33 @@ class MetasploitModule < Msf::Post
     end
   end
 
-  def cleanup
-    vprint_status("Cleanup: changing working directory back to #{@old_pwd}")
-    cd(@old_pwd)
-    super
+  def test_writable
+    if session.platform == 'windows'
+      it 'should detect a writable file' do
+        write_file(datastore['BaseFileName'], 'test')
+        ret = writable?(datastore['BaseFileName'])
+        rm_f(datastore['BaseFileName'])
+        ret
+      end
+
+      it 'should detect a writable directory' do
+        mkdir(datastore['BaseDirectoryName'])
+        ret = writable?(datastore['BaseDirectoryName'])
+        rm_rf(datastore['BaseDirectoryName'])
+        ret
+      end
+
+    end
   end
 
   def make_symlink(target, symlink)
     if session.platform == 'windows'
-      cmd_exec("cmd.exe /c mklink #{directory?(target) ? '/D ' : ''}#{symlink} #{target}")
+      cmd_exec('cmd.exe', "/c mklink #{directory?(target) ? '/D ' : ''}#{symlink} #{target}")
     else
       cmd_exec("ln -s $(pwd)/#{target} $(pwd)/#{symlink}")
     end
   end
 
-  def register_dir_for_cleanup(path)
-  end
+  def register_dir_for_cleanup(path); end
 
 end

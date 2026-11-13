@@ -106,7 +106,7 @@ module Msf
       # are intended to be similar to the curl utility.
       #
       # @param args [Array<String>] The command line arguments to parse.
-      # @param type [String] The protocol type that the request is for.
+      # @param _type [String] The protocol type that the request is for.
       # @return [Array<Hash>, Rex::Parser::Arguments>] An array with the options
       #   hash and the argument parser.
       def parse_args_http(args = [], _type = 'http')
@@ -195,7 +195,7 @@ module Msf
         [options, opt_parser]
       end
 
-      # Perform an HTTPS request based on the user specifed options.
+      # Perform an HTTPS request based on the user specified options.
       #
       # @param opts [Hash] The options to use for making the HTTPS request.
       # @option opts [String] :auth_username An optional username to use with
@@ -226,7 +226,7 @@ module Msf
         handle_request_http(opts, opt_parser)
       end
 
-      # Perform an HTTP request based on the user specifed options.
+      # Perform an HTTP request based on the user specified options.
       #
       # @param opts [Hash] The options to use for making the HTTP request.
       # @option opts [String] :auth_username An optional username to use with
@@ -249,7 +249,7 @@ module Msf
       # @option opts [String] :uri The target uri to request.
       # @option opts [String] :user_agent The value to use in the User-Agent
       #   header of the request.
-      # @param opt_parser [Rex::Parser::Arguments] the argument parser for the
+      # @param _opt_parser [Rex::Parser::Arguments] the argument parser for the
       #   request type.
       # @return [nil]
       def handle_request_http(opts, _opt_parser)

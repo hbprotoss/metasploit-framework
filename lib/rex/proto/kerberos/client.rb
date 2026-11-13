@@ -1,6 +1,7 @@
 # -*- coding: binary -*-
 
 require 'rex/stopwatch'
+require 'rex/proto/kerberos/kerberos_subscriber'
 
 module Rex
   module Proto
@@ -13,6 +14,9 @@ module Rex
         # @!attribute port
         #   @return [Integer] The kerberos server port
         attr_accessor :port
+        # @!attribute proxies
+        #   @return [String,nil] The proxy directive to use for the socket
+        attr_accessor :proxies
         # @!attribute timeout
         #   @return [Integer] The connect / read timeout
         attr_accessor :timeout
@@ -26,13 +30,18 @@ module Rex
         # @!attribute context
         #   @return [Hash] The Msf context where the connection belongs to
         attr_accessor :context
+        # @!attribute subscriber
+        #   @return [Rex::Proto::Kerberos::KerberosSubscriber] Subscriber used for tracing Kerberos
+        attr_accessor :subscriber
 
         def initialize(opts = {})
           self.host = opts[:host]
           self.port     = (opts[:port] || 88).to_i
+          self.proxies  = opts[:proxies]
           self.timeout  = (opts[:timeout] || 10).to_i
           self.protocol = opts[:protocol] || 'tcp'
           self.context  = opts[:context] || {}
+          self.subscriber = opts[:subscriber] || KerberosSubscriber.new
         end
 
         # Creates a connection through a Rex socket
@@ -41,7 +50,7 @@ module Rex
         # @raise [RuntimeError] if the connection can not be created
         def connect
           return connection if connection
-
+          raise ArgumentError, 'Missing remote address' unless self.host && self.port
           case protocol
           when 'tcp'
             self.connection = create_tcp_connection
@@ -72,6 +81,7 @@ module Rex
         # @raise [NotImplementedError] if the transport protocol isn't supported
         def send_request(req)
           connect
+          subscriber.on_request(req)
 
           sent = 0
           case protocol
@@ -108,6 +118,7 @@ module Rex
             raise ::RuntimeError, 'Kerberos Client: unknown transport protocol'
           end
 
+          subscriber.on_response(res)
           res
         end
 
@@ -133,6 +144,7 @@ module Rex
           self.connection = Rex::Socket::Tcp.create(
             'PeerHost'   => host,
             'PeerPort'   => port.to_i,
+            'Proxies'    => proxies,
             'Context'    => context,
             'Timeout'    => timeout
           )

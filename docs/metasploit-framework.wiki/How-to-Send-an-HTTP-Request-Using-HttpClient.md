@@ -62,9 +62,9 @@ res = @http_client.send_request_cgi({
 The cookies returned by the server with a successful login need to be attached to all future requests, so `'keep_cookies' => true,` is used to add all returned cookies to the HttpClient CookieJar and attach them to all subsequent requests.
 
 ### `cookie` option
-Shown below is the request used to login to a gitlab account in the [artical\_proxy\_auth\_bypass\_service\_cmds\_peform\_command\_injection module](https://github.com/rapid7/metasploit-framework/blob/92d981fff2b4a40324969fd1d1744219589b5fa3/modules/exploits/linux/http/artica_proxy_auth_bypass_service_cmds_peform_command_injection.rb#L115)
+Shown below is the request used to login to a gitlab account in the [artica\_proxy\_auth\_bypass\_service\_cmds\_peform\_command\_injection module](https://github.com/rapid7/metasploit-framework/blob/92d981fff2b4a40324969fd1d1744219589b5fa3/modules/exploits/linux/http/artica_proxy_auth_bypass_service_cmds_peform_command_injection.rb#L115)
 
-artical\_proxy\_auth\_bypass\_service\_cmds\_peform\_command\_injection requires a specific cookie header to be sent with a request in order to achieve RCE. By setting a string of the desired header as the value of the `cookie` option, that string is set as the cookie header without any changes, allowing the exploit to be carried out.
+artica\_proxy\_auth\_bypass\_service\_cmds\_peform\_command\_injection requires a specific cookie header to be sent with a request in order to achieve RCE. By setting a string of the desired header as the value of the `cookie` option, that string is set as the cookie header without any changes, allowing the exploit to be carried out.
 
 ```ruby
 res = send_request_cgi({
@@ -81,14 +81,17 @@ Any object passed to `cookie` that isn't an instance of HttpCookieJar will have 
 
 ----
 
-Module authors can also pass an instance of `HttpCookieJar` with the `cookie` option:
+Module authors can also pass an instance of `HttpCookieJar` with the `cookie` option.
+
+Important: Cookies added to a `HttpCookieJar` must have both `domain` and `path` set, and cookie values must be strings. Without these attributes the underlying cookie store will raise an `ArgumentError`.
 
 ```ruby
 cj = Msf::Exploit::Remote::HTTP::HttpCookieJar.new
 
-cj.add(Msf::Exploit::Remote::HTTP::HttpCookie.new('PHPSESSID', @phpsessid))
-cj.add(Msf::Exploit::Remote::HTTP::HttpCookie.new('AsWebStatisticsCooKie', 1))
-cj.add(Msf::Exploit::Remote::HTTP::HttpCookie.new('shellinaboxCooKie', 1))
+target_host = datastore['RHOST']
+cj.add(Msf::Exploit::Remote::HTTP::HttpCookie.new('PHPSESSID', @phpsessid, domain: target_host, path: '/'))
+cj.add(Msf::Exploit::Remote::HTTP::HttpCookie.new('AsWebStatisticsCooKie', '1', domain: target_host, path: '/'))
+cj.add(Msf::Exploit::Remote::HTTP::HttpCookie.new('shellinaboxCooKie', '1', domain: target_host, path: '/'))
 
 res = send_request_cgi({
   'method' => 'GET',

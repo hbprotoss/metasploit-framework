@@ -160,6 +160,7 @@ module BindAwsSsm
     register_advanced_options(
       [
         OptString.new('SSM_SESSION_DOC', [true, 'The SSM document to use for session requests', 'SSM-SessionManagerRunShell']),
+        # AWS-RunShellScript, AWS-RunPowerShellScript, etc
         OptBool.new('SSM_KEEP_ALIVE', [false, 'Keep AWS SSM session alive with empty messages', true])
       ], Msf::Handler::BindAwsSsm)
 
@@ -210,7 +211,7 @@ module BindAwsSsm
       ctimeout = exploit_config['active_timeout'].to_i
     end
 
-    # Ignore this if one of the requried options is missing
+    # Ignore this if one of the required options is missing
     return if datastore['EC2_ID'].blank?
 
     # Only try the same host/port combination once
@@ -270,9 +271,10 @@ module BindAwsSsm
             # Configure Channel
             chan._start_ssm_keepalive if datastore['SSM_KEEP_ALIVE']
             chan.params.comm = Rex::Socket::Comm::Local unless chan.params.comm
+            chan.params.peerhostname = peer_info['ComputerName']
             chan.params.peerhost = peer_info['IpAddress']
             chan.params.peerport = 0
-            chan.params.peerhostname = peer_info['ComputerName']
+            chan.lsock.initinfo(Rex::Socket.to_authority(peer_info['IpAddress'], 0), chan.lsock.localinfo)
             chan.update_term_size
           rescue => e
             print_error("AWS SSM handler failed: #{e.message}")

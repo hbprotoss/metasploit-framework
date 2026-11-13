@@ -17,7 +17,10 @@ class MetasploitModule < Msf::Auxiliary
         This module runs arbitrary Windows commands using the WinRM Service
         },
       'Author' => [ 'thelightcosine' ],
-      'License' => MSF_LICENSE
+      'License' => MSF_LICENSE,
+      'References' => [
+        [ 'ATT&CK', Mitre::Attack::Technique::T1021_006_WINDOWS_REMOTE_MANAGEMENT ]
+      ]
     )
 
     register_options(
@@ -42,22 +45,24 @@ class MetasploitModule < Msf::Auxiliary
     endpoint = "#{schema}://#{rhost}:#{rport}#{uri}"
     opts = {
       endpoint: endpoint,
-        host: rhost,
-        port: rport,
-        uri: uri,
-        ssl: ssl,
-        transport: :rexhttp,
-        no_ssl_peer_verification: true,
-        operation_timeout: 1,
-        timeout: 20,
-        retry_limit: 1,
-        realm: datastore['DOMAIN']
+      host: rhost,
+      port: rport,
+      proxies: datastore['Proxies'],
+      uri: uri,
+      ssl: ssl,
+      transport: :rexhttp,
+      no_ssl_peer_verification: true,
+      operation_timeout: 1,
+      timeout: 20,
+      retry_limit: 1,
+      realm: datastore['DOMAIN']
     }
     case datastore['Winrm::Auth']
     when Msf::Exploit::Remote::AuthOption::KERBEROS
       kerberos_authenticator = Msf::Exploit::Remote::Kerberos::ServiceAuthenticator::HTTP.new(
         host: datastore['DomainControllerRhost'],
         hostname: datastore['Winrm::Rhostname'],
+        proxies: datastore['proxies'],
         realm: datastore['DOMAIN'],
         username: datastore['USERNAME'],
         password: datastore['PASSWORD'],
@@ -68,7 +73,8 @@ class MetasploitModule < Msf::Auxiliary
         mutual_auth: true,
         use_gss_checksum: true,
         ticket_storage: kerberos_ticket_storage,
-        offered_etypes: Msf::Exploit::Remote::AuthOption.as_default_offered_etypes(datastore['Winrm::KrbOfferedEncryptionTypes'])
+        offered_etypes: Msf::Exploit::Remote::AuthOption.as_default_offered_etypes(datastore['Winrm::KrbOfferedEncryptionTypes']),
+        clock_skew: kerberos_clock_skew_seconds
       )
       opts = opts.merge({
         user: '', # Need to provide it, otherwise the WinRM module complains

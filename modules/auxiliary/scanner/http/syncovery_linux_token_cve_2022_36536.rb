@@ -60,8 +60,8 @@ class MetasploitModule < Msf::Auxiliary
     deregister_options(
       'USERNAME', 'USER_AS_PASS', 'DB_ALL_CREDS', 'DB_ALL_PASS', 'DB_ALL_USERS', 'DB_SKIP_EXISTING',
       'NTLM::SendLM', 'NTLM::SendNTLM', 'NTLM::SendSPN', 'NTLM::UseLMKey', 'NTLM::UseNTLM2_session', 'NTLM::UseNTLMv2',
-      'REMOVE_USERPASS_FILE', 'REMOVE_USER_FILE', 'DOMAIN', 'HttpUsername', 'PASSWORD_SPRAY', 'BLANK_PASSWORDS',
-      'USER_FILE', 'USERPASS_FILE', 'PASS_FILE', 'PASSWORD'
+      'REMOVE_USERPASS_FILE', 'REMOVE_USER_FILE', 'DOMAIN', 'HttpUsername', 'BLANK_PASSWORDS', 'USER_FILE',
+      'USERPASS_FILE', 'PASS_FILE', 'PASSWORD'
     )
   end
 
@@ -77,19 +77,19 @@ class MetasploitModule < Msf::Auxiliary
         version = json_res['SyncoveryTitle']&.scan(/Syncovery\s([A-Za-z0-9.]+)/)&.flatten&.first || ''
         if version.empty?
           vprint_warning("#{peer} - Could not identify version")
-          Exploit::CheckCode::Detected
+          Exploit::CheckCode::Detected('Syncovery Linux detected but version could not be determined')
         elsif Rex::Version.new(version) < Rex::Version.new('9.48j') || Rex::Version.new(version) == Rex::Version.new('9.48')
           vprint_good("#{peer} - Syncovery #{version}")
-          Exploit::CheckCode::Appears
+          Exploit::CheckCode::Appears("Syncovery Linux #{version} appears to be vulnerable")
         else
           vprint_status("#{peer} - Syncovery #{version}")
-          Exploit::CheckCode::Safe
+          Exploit::CheckCode::Safe("Syncovery Linux #{version} is not vulnerable")
         end
       else
-        Exploit::CheckCode::Safe
+        Exploit::CheckCode::Safe('Target is running Syncovery on Windows, not Linux')
       end
     else
-      Exploit::CheckCode::Unknown
+      Exploit::CheckCode::Unknown('Failed to retrieve Syncovery global variables')
     end
   end
 
@@ -124,11 +124,13 @@ class MetasploitModule < Msf::Auxiliary
 
     print_status("#{peer.strip} - Starting Brute-Forcer")
     scanner = Metasploit::Framework::LoginScanner::SyncoveryFileSyncBackup.new(
-      host: ip,
-      port: rport,
-      cred_details: cred_collection,
-      stop_on_success: true, # this will have no effect due to the scanner behaviour when scanning without username
-      connection_timeout: 10
+      configure_login_scanner(
+        host: ip,
+        port: rport,
+        cred_details: cred_collection,
+        stop_on_success: true, # this will have no effect due to the scanner behaviour when scanning without username
+        connection_timeout: 10
+      )
     )
 
     scanner.scan! do |result|

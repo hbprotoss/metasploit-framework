@@ -1,4 +1,3 @@
-
 require 'metasploit/framework/login_scanner/base'
 require 'metasploit/framework/login_scanner/rex_socket'
 
@@ -11,15 +10,18 @@ module Metasploit
       class HTTP
         include Metasploit::Framework::LoginScanner::Base
         include Metasploit::Framework::LoginScanner::RexSocket
+        include Msf::Auxiliary::Report
 
-        DEFAULT_REALM        = nil
-        DEFAULT_PORT         = 80
-        DEFAULT_SSL_PORT     = 443
-        DEFAULT_HTTP_SUCCESS_CODES = [ 200, 201 ].append(*(300..309))
-        LIKELY_PORTS         = [ 80, 443, 8000, 8080 ]
-        LIKELY_SERVICE_NAMES = [ 'http', 'https' ]
-        PRIVATE_TYPES        = [ :password ]
-        REALM_KEY            = Metasploit::Model::Realm::Key::ACTIVE_DIRECTORY_DOMAIN
+        AUTHORIZATION_HEADER = 'WWW-Authenticate'.freeze
+        DEFAULT_REALM = nil
+        DEFAULT_PORT = 80
+        DEFAULT_SSL_PORT = 443
+        DEFAULT_HTTP_SUCCESS_CODES = [200, 201].append(*(300..309))
+        DEFAULT_HTTP_NOT_AUTHED_CODES = [401]
+        LIKELY_PORTS = [80, 443, 8000, 8080]
+        LIKELY_SERVICE_NAMES = %w[http https]
+        PRIVATE_TYPES = [:password]
+        REALM_KEY = Metasploit::Model::Realm::Key::ACTIVE_DIRECTORY_DOMAIN
 
         # @!attribute uri
         #   @return [String] The path and query string on the server to
@@ -213,16 +215,16 @@ module Metasploit
             # authentication
             response = http_client._send_recv(request)
           rescue ::EOFError, Errno::ETIMEDOUT, OpenSSL::SSL::SSLError, Rex::ConnectionError, ::Timeout::Error
-            return "Unable to connect to target"
+            return 'Unable to connect to target'
           end
 
-          if !(response && response.code == 401 && response.headers['WWW-Authenticate'])
-            error_message = "No authentication required"
-          else
-            error_message = false
+          if authentication_required?(response)
+            # TODO: we might be able to do this, but look into potential false positives first.
+            # report_service(service)
+            return false
           end
 
-          error_message
+          'No authentication required'
         end
 
         # Sends a HTTP request with Rex
@@ -235,9 +237,9 @@ module Metasploit
         # @option opts [Credential] 'credential' A credential object
         # @option opts [Rex::Proto::Http::Client] 'http_client' object that can be used by the function
         # @option opts ['Hash'] 'context' A context
-        # @raise [Rex::ConnectionError] One of these errors has occured: EOFError, Errno::ETIMEDOUT, Rex::ConnectionError, ::Timeout::Error
+        # @raise [Rex::ConnectionError] One of these errors has occurred: EOFError, Errno::ETIMEDOUT, Rex::ConnectionError, ::Timeout::Error
         # @return [Rex::Proto::Http::Response] The HTTP response
-        # @return [NilClass] An error has occured while reading the response (see #Rex::Proto::Http::Client#read_response)
+        # @return [NilClass] An error has occurred while reading the response (see #Rex::Proto::Http::Client#read_response)
         def send_request(opts)
           close_client = !opts.key?(:http_client)
           cli = opts.fetch(:http_client) { create_client(opts) }
@@ -252,7 +254,7 @@ module Metasploit
                   else
                     cli._send_recv(req)
                   end
-          rescue ::EOFError, Errno::ETIMEDOUT ,Errno::ECONNRESET, Rex::ConnectionError, OpenSSL::SSL::SSLError, ::Timeout::Error => e
+          rescue ::EOFError, Errno::ETIMEDOUT, Errno::ECONNRESET, Rex::ConnectionError, OpenSSL::SSL::SSLError, ::Timeout::Error => e
             raise Rex::ConnectionError, e.message
           ensure
             # If we didn't create the client, don't close it
@@ -275,17 +277,8 @@ module Metasploit
           result_opts = {
             credential: credential,
             status: Metasploit::Model::Login::Status::INCORRECT,
-            proof: nil,
-            host: host,
-            port: port,
-            protocol: 'tcp'
+            **service_as_result(build_http_service_opts)
           }
-
-          if ssl
-            result_opts[:service_name] = 'https'
-          else
-            result_opts[:service_name] = 'http'
-          end
 
           request_opts = {'credential'=>credential, 'uri'=>uri, 'method'=>method}
           if keep_connection_alive
@@ -315,18 +308,100 @@ module Metasploit
           Result.new(result_opts)
         end
 
+        protected
+
+        # Returns a boolean value indicating whether the request requires authentication or not.
+        #
+        # @param [Rex::Proto::Http::Response] response The response received from the HTTP endpoint
+        # @return [Boolean] True if the request required authentication; otherwise false.
+        def authentication_required?(response)
+          return false unless response
+
+          self.class::DEFAULT_HTTP_NOT_AUTHED_CODES.include?(response.code) &&
+            response.headers[self.class::AUTHORIZATION_HEADER]
+        end
+
+        def build_http_service_opts
+          if ssl
+            {
+              name: 'https',
+              host: host,
+              port: port,
+              proto: 'tcp',
+              parents: [
+                {
+                  name: 'ssl',
+                  host: host,
+                  port: port,
+                  proto: 'tcp',
+                  parents: [
+                    {
+                      name: 'tcp',
+                      host: host,
+                      port: port,
+                      proto: 'tcp'
+                    }
+                  ]
+                }
+              ]
+            }
+          else
+            {
+              name: 'http',
+              host: host,
+              port: port,
+              proto: 'tcp',
+              parents: [
+                {
+                  name: 'tcp',
+                  host: host,
+                  port: port,
+                  proto: 'tcp'
+                }
+              ]
+            }
+          end
+        end
+
+        def service_as_result(service)
+          transform_map = { name: :service_name, proto: :protocol }
+          service.transform_keys { |key| transform_map[key] || key }
+        end
+
+        def service_opts
+          raise NotImplementedError
+        end
+
+        # @see Msf::Auxiliary::Report#db
+        def db
+          framework&.db&.active
+        end
+
+        def build_service_opts(software_name)
+          parents = build_http_service_opts
+
+          {
+            name: software_name.downcase,
+            host: host,
+            port: port,
+            proto: 'tcp',
+            resource: uri,
+            parents: [ parents ]
+          }
+        end
+
         private
 
         def create_client(opts)
-          rhost           = opts['host'] || host
-          rport           = opts['rport'] || port
-          cli_ssl         = opts['ssl'] || ssl
+          rhost = opts['host'] || host
+          rport = opts['rport'] || port
+          cli_ssl = opts['ssl'] || ssl
           cli_ssl_version = opts['ssl_version'] || ssl_version
-          cli_proxies     = opts['proxies'] || proxies
-          username        = opts['credential'] ? opts['credential'].public : http_username
-          password        = opts['credential'] ? opts['credential'].private : http_password
-          realm           = opts['credential'] ? opts['credential'].realm : nil
-          context         = opts['context'] || { 'Msf' => framework, 'MsfExploit' => framework_module}
+          cli_proxies = opts['proxies'] || proxies
+          username = opts['credential'] ? opts['credential'].public : http_username
+          password = opts['credential'] ? opts['credential'].private : http_password
+          realm = opts['credential'] ? opts['credential'].realm : nil
+          context = opts['context'] || { 'Msf' => framework, 'MsfExploit' => framework_module}
 
           kerberos_authenticator = nil
           if kerberos_authenticator_factory
@@ -418,7 +493,7 @@ module Metasploit
           self.http_success_codes = DEFAULT_HTTP_SUCCESS_CODES if self.http_success_codes.nil?
 
           # Note that this doesn't cover the case where ssl is unset and
-          # port is something other than a default. In that situtation,
+          # port is something other than a default. In that situation,
           # we don't know what the user has in mind so we have to trust
           # that they're going to do something sane.
           if !(self.ssl) && self.port.nil?
@@ -441,10 +516,22 @@ module Metasploit
 
         # Combine the base URI with the target URI in a sane fashion
         #
-        # @param [String] target_uri the target URL
+        # @param [Array<String>] target_uri the target URL
         # @return [String] the final URL mapped against the base
-        def normalize_uri(target_uri)
-          (self.uri.to_s + "/" + target_uri.to_s).gsub(/\/+/, '/')
+        def normalize_uri(*target_uri)
+          if target_uri.count == 1
+            (uri.to_s + '/' + target_uri.first.to_s).gsub(%r{/+}, '/')
+          else
+            new_str = target_uri * '/'
+            new_str = new_str.gsub!('//', '/') while new_str.index('//')
+
+            # Makes sure there's a starting slash
+            unless new_str[0,1] == '/'
+              new_str = '/' + new_str
+            end
+
+            new_str
+          end
         end
 
         private

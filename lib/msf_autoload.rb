@@ -35,15 +35,21 @@ class MsfAutoload
         'PowerShell'
       elsif basename == 'ui' && abspath.end_with?("#{__dir__}/msf/core/module/ui", "#{__dir__}/msf/core/module/ui.rb", "#{__dir__}/rex/post/ui", "#{__dir__}/rex/post/ui.rb", "#{__dir__}/rex/post/meterpreter/extensions/stdapi/ui.rb")
         'UI'
+      elsif basename == 'mysql' && abspath.end_with?("#{__dir__}/msf/core/exploit/remote/mysql.rb")
+        'MYSQL'
       elsif basename == 'ssh' && abspath.end_with?("#{__dir__}/rex/proto/ssh")
         'Ssh'
+      elsif basename == 'ftp' && abspath.end_with?("#{__dir__}/rex/proto/ftp")
+        'Ftp'
+      elsif basename == 'ftp' && abspath.end_with?("#{__dir__}/msf/core/exploit/remote/ftp.rb")
+        'Ftp'
       elsif basename == 'http' && abspath.end_with?("#{__dir__}/rex/proto/http")
         'Http'
       elsif basename == 'rftransceiver' && abspath.end_with?("#{__dir__}/rex/post/hwbridge/ui/console/command_dispatcher/rftransceiver.rb")
         'RFtransceiver'
       else
-       super
-    end
+        super
+      end
     end
   end
 
@@ -63,7 +69,9 @@ class MsfAutoload
       "#{__dir__}/rex/post.rb",
       "#{__dir__}/rex/proto/ssh/hrr_rb_ssh.rb",
       "#{__dir__}/rex/proto/ssh/connection.rb",
-      "#{__dir__}/rex/proto/kerberos/pac/krb5_pac.rb"
+      "#{__dir__}/rex/proto/kerberos/pac/krb5_pac.rb",
+      "#{__dir__}/msf/core/mcp.rb",
+      "#{__dir__}/msf/core/mcp/"
     ]
   end
 
@@ -73,7 +81,7 @@ class MsfAutoload
       "#{__dir__}/msf/core/rpc/v10",
       "#{__dir__}/msf/core/payload/osx/x64",
       "#{__dir__}/msf/core/payload/windows/x64",
-      "#{__dir__}/msf/core/payload/linux/x64",
+      # "#{__dir__}/msf/core/payload/linux/x64",
       "#{__dir__}/msf/core/web_services/servlet",
       "#{__dir__}/msf/base",
       "#{__dir__}/rex/parser/fs"
@@ -122,6 +130,7 @@ class MsfAutoload
       'macho' => 'MachO',
       'nodejs' => 'NodeJS',
       'jsobfu' => 'JSObfu',
+      'vbsobfuscate' => 'VBSObfuscate',
       'osx' => 'OSX',
       'webrtc' => 'WebRTC',
       'json' => 'JSON',
@@ -131,6 +140,7 @@ class MsfAutoload
       'mssql' => 'MSSQL',
       'pdf' => 'PDF',
       'fileformat' => 'FILEFORMAT',
+      'ftp' => 'FTP',
       'http' => 'HTTP',
       'html' => 'HTML',
       'pdf_parse' => 'PDF_Parse',
@@ -143,7 +153,7 @@ class MsfAutoload
       'dcerpc_lsa' => 'DCERPC_LSA',
       'wdbrpc_client' => 'WDBRPC_Client',
       'sunrpc' => 'SunRPC',
-      'mysql' => 'MYSQL',
+      'mysql' => 'MySQL',
       'ldap' => 'LDAP',
       'sqli' => 'SQLi',
       'dhcp_server' => 'DHCPServer',
@@ -164,12 +174,14 @@ class MsfAutoload
       'dns' => 'DNS',
       'smtp_deliver' => 'SMTPDeliver',
       'send_uuid' => 'SendUUID',
+      'exec_x86' => 'Exec_X86',
       'exec_x64' => 'Exec_x64',
       'reflective_dll_injection' => 'ReflectiveDLLInjection',
       'reflective_pe_loader' => 'ReflectivePELoader',
       'pe_inject' => 'PEInject',
-      'payload_db_conf' => 'PayloadDBConf',
       'reverse_tcp_x86' => 'ReverseTcp_x86',
+      'reverse_tcp_aarch64' => 'ReverseTcp_Aarch64',
+      'exitfunk_aarch64' => 'Exitfunk_Aarch64',
       'ruby_dl' => 'RubyDL',
       'wmic' => 'WMIC',
       'net_api' => 'NetAPI',
@@ -186,6 +198,7 @@ class MsfAutoload
       'cli' => 'CLI',
       'sqlitei' => 'SQLitei',
       'mysqli' => 'MySQLi',
+      'postgresql' => 'PostgreSQL',
       'postgresqli' => 'PostgreSQLi',
       'ssh' => 'SSH',
       'winrm' => 'WinRM',
@@ -247,6 +260,7 @@ class MsfAutoload
       'meterpreter_mipsbe_linux' => 'Meterpreter_mipsbe_Linux',
       'meterpreter_aarch64_apple_ios' => 'Meterpreter_aarch64_Apple_iOS',
       'meterpreter_x64_osx' => 'Meterpreter_x64_OSX',
+      'meterpreter_aarch64_osx' => 'Meterpreter_aarch64_OSX',
       'meterpreter_ppc_linux' => 'Meterpreter_ppc_Linux',
       'meterpreter_x64_win' => 'Meterpreter_x64_Win',
       'meterpreter_php' => 'Meterpreter_Php_Php',
@@ -279,6 +293,7 @@ class MsfAutoload
       'rakp2' => 'RAKP2',
       'pjl' => 'PJL',
       'dhcp' => 'DHCP',
+      'dhcpv6' => 'DHCPv6',
       'addp' => 'ADDP',
       'rfb' => 'RFB',
       'io' => 'IO',
@@ -292,6 +307,16 @@ class MsfAutoload
       'appapi' => 'AppApi',
       'uds_errors' => 'UDSErrors',
       'smb_hash_capture' => 'SMBHashCapture',
+      'rex_ntlm' => 'RexNTLM',
+      'teamcity' => 'TeamCity',
+      'nist_sp_800_38f' => 'NIST_SP_800_38f',
+      'nist_sp_800_108' => 'NIST_SP_800_108',
+      'sccm' => 'SCCM',
+      'pfsense' => 'PfSense',
+      'opnsense' => 'OPNSense',
+      'pgadmin' => 'PgAdmin',
+      'freepbx' => 'FreePBX',
+      'complete_pbx' => 'CompletePBX'
     }
   end
 
@@ -329,11 +354,21 @@ class MsfAutoload
 end
 
 # global autoload of common gems
+autoload :BCrypt, 'bcrypt'
+autoload :Dnsruby, 'dnsruby'
 autoload :Faker, 'faker'
 autoload :BinData, 'bindata'
+autoload :Metasm, 'metasm'
+autoload :Recog, 'recog'
 autoload :RubySMB, 'ruby_smb'
+autoload :MetasploitPayloads, 'metasploit-payloads'
+autoload :PacketFu, 'packetfu'
+autoload :Zip, 'zip'
+autoload :DidYouMean, 'did_you_mean'
 
 require 'rexml/document'
+# Load IO#expect moneypatch
+require 'expect'
 
 # XXX: Should be removed once the `lib/metasploit` folder is loaded by Zeitwerk
 require 'metasploit/framework/hashes'

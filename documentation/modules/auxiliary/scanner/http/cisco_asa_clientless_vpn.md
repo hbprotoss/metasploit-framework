@@ -72,7 +72,7 @@ The next part of the installation will require a Windows machine. From your Wind
 1. Click "Install ASDM Launcher"
 1. Enter creds `blank`:labpass1 (where blank is nothing and labpass1 is your enable password)
 1. Install the downloaded `dm-launcher.msi` (before 7.18.1 it will be unsigned)
-1. If Java isn't installed, intall Java 1.8 (current at time of writing is 8 Update 333): https://www.java.com/en/download/
+1. If Java isn't installed, install Java 1.8 (current at time of writing is 8 Update 333): https://www.java.com/en/download/
 1. Start the ASDM Launcher via `C:\Program Files (x86)\Cisco Systems\ASDM\run.bat`
 1. Enter your ASAv's IP address (10.9.249.201)
 1. Enter a blank username
@@ -154,43 +154,43 @@ Simply using the default HTTP username and password lists and `user1:user1` adde
 `data/wordlists/http_default_userpass.txt`.
 
 ```
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > use auxiliary/scanner/http/cisco_asa_clientless_vpn
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > set VERBOSE false
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > use auxiliary/scanner/http/cisco_asa_clientless_vpn
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > set VERBOSE false
 VERBOSE => false
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > set RHOST 10.9.49.201
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > set RHOST 10.9.49.201
 RHOST => 10.9.49.201
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > run
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > run
 
 [*] The remote target appears to host Cisco SSL VPN Service. The module will continue.
 [*] Starting login brute force...
 [+] SUCCESSFUL LOGIN - "user1":"user1"
 [*] Scanned 1 of 1 hosts (100% complete)
 [*] Auxiliary module execution completed
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > 
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > 
 ```
 
 ## ASAv 9.18.1 with Clientless SSL VPN enabled and the `user1:user1` on the `TunnelGroup1` Connection Profile
 
 ```
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > use auxiliary/scanner/http/cisco_asa_clientless_vpn
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > set VERBOSE false
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > use auxiliary/scanner/http/cisco_asa_clientless_vpn
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > set VERBOSE false
 VERBOSE => false
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > set RHOST 10.9.49.201
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > set RHOST 10.9.49.201
 RHOST => 10.9.49.201
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > run
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > run
 
 [*] The remote target appears to host Cisco SSL VPN Service. The module will continue.
 [*] Starting login brute force...
 [*] Scanned 1 of 1 hosts (100% complete)
 [*] Auxiliary module execution completed
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > set GROUP TunnelGroup1
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > set GROUP TunnelGroup1
 GROUP => TunnelGroup1
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > run
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > run
 
 [*] The remote target appears to host Cisco SSL VPN Service. The module will continue.
 [*] Starting login brute force...
 [+] SUCCESSFUL LOGIN - "user1":"user1"
 [*] Scanned 1 of 1 hosts (100% complete)
 [*] Auxiliary module execution completed
-msf6 auxiliary(scanner/http/cisco_asa_clientless_vpn) > 
+msf auxiliary(scanner/http/cisco_asa_clientless_vpn) > 
 ```

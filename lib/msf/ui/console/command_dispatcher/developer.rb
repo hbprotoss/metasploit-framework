@@ -19,6 +19,12 @@ class Msf::Ui::Console::CommandDispatcher::Developer
     ['-l', '--list'] => [false, 'View the currently running services' ]
   )
 
+  @@_historymanager_opts = Rex::Parser::Arguments.new(
+    '-h' => [false, 'Help menu.'             ],
+    ['-l', '--list'] => [true,  'View the current history manager contexts.'],
+    ['-d', '--debug'] => [true,  'Debug the current history manager contexts.']
+  )
+
   def initialize(driver)
     super
     @modified_files = modified_file_paths(print_errors: false)
@@ -37,8 +43,9 @@ class Msf::Ui::Console::CommandDispatcher::Developer
       'log'        => 'Display framework.log paged to the end if possible',
       'time'       => 'Time how long it takes to run a particular command'
     }
-    if framework.features.enabled?(Msf::FeatureManager::SERVICEMANAGER_COMMAND)
+    if framework.features.enabled?(Msf::FeatureManager::MANAGER_COMMANDS)
       commands['_servicemanager'] = 'Interact with the Rex::ServiceManager'
+      commands['_historymanager'] = 'Interact with the Rex::Ui::Text::Shell::HistoryManager'
     end
     commands
   end
@@ -60,9 +67,7 @@ class Msf::Ui::Console::CommandDispatcher::Developer
   end
 
   # XXX: This will try to reload *any* .rb and break on modules
-  def reload_file(path, print_errors: true)
-    full_path = File.expand_path(path)
-
+  def reload_file(full_path, print_errors: true)
     unless File.exist?(full_path) && full_path.end_with?('.rb')
       print_error("#{full_path} must exist and be a .rb file") if print_errors
       return
@@ -87,11 +92,16 @@ class Msf::Ui::Console::CommandDispatcher::Developer
       files = []
     end
 
+    ignored_patterns = %w[
+      **/Gemfile
+      **/Gemfile.lock
+      **/*_spec.rb
+      **/spec_helper.rb
+    ]
     @modified_files ||= []
-    @modified_files |= files.map do |file|
-      next if file.end_with?('_spec.rb') || file.end_with?("spec_helper.rb")
-      File.join(Msf::Config.install_root, file)
-    end.compact
+    @modified_files |= files.reject do |file|
+      ignored_patterns.any? { |pattern| File.fnmatch(pattern, file) }
+    end
     @modified_files
   end
 
@@ -122,7 +132,7 @@ class Msf::Ui::Console::CommandDispatcher::Developer
     if expressions.empty?
       print_status('Starting IRB shell...')
 
-      Rex::Ui::Text::Shell::HistoryManager.with_context(name: :irb) do
+      framework.history_manager.with_context(name: :irb) do
         begin
           if active_module
             print_status("You are in #{active_module.fullname}\n")
@@ -141,8 +151,8 @@ class Msf::Ui::Console::CommandDispatcher::Developer
         driver.input.reset_tab_completion
       end
     else
-      # XXX: No vprint_status here either
-      if framework.datastore['VERBOSE'].to_s == 'true'
+      # XXX: No vprint_status in this context
+      if framework.datastore['VERBOSE']
         print_status("You are executing expressions in #{binding.receiver}")
       end
 
@@ -185,7 +195,7 @@ class Msf::Ui::Console::CommandDispatcher::Developer
     print_status('Starting Pry shell...')
 
     Pry.config.history_load = false
-    Rex::Ui::Text::Shell::HistoryManager.with_context(history_file: Msf::Config.pry_history, name: :pry) do
+    framework.history_manager.with_context(history_file: Msf::Config.pry_history, name: :pry) do
       if active_module
         print_status("You are in the \"#{active_module.fullname}\" module object\n")
         active_module.pry
@@ -232,9 +242,8 @@ class Msf::Ui::Console::CommandDispatcher::Developer
       print_warning("LocalEditor or $VISUAL/$EDITOR should be set. Falling back on #{editor}.")
     end
 
-    # XXX: No vprint_status in this context?
-    # XXX: VERBOSE is a string instead of Bool??
-    print_status("Launching #{editor} #{path}") if framework.datastore['VERBOSE'].to_s == 'true'
+    # XXX: No vprint_status in this context
+    print_status("Launching #{editor} #{path}") if framework.datastore['VERBOSE']
 
     unless system(*editor.split, path)
       print_error("Could not execute #{editor} #{path}")
@@ -262,6 +271,7 @@ class Msf::Ui::Console::CommandDispatcher::Developer
   #
   def cmd_reload_lib(*args)
     files = []
+    use_modified = false
     options = OptionParser.new do |opts|
       opts.banner = 'Usage: reload_lib lib/to/reload.rb [...]'
       opts.separator ''
@@ -274,16 +284,21 @@ class Msf::Ui::Console::CommandDispatcher::Developer
 
       opts.on '-a', '--all', 'Reload all* changed files in your current Git working tree.
                                      *Excludes modules and non-Ruby files.' do
+        use_modified = true
         files.concat(modified_file_paths)
       end
     end
 
     # The remaining unparsed arguments are files
-    files.concat(options.order(args))
+    files.concat(options.permute(args))
     files.uniq!
 
-    return print(options.help) if files.empty?
+    if files.empty?
+      return print_status('Nothing to reload') if use_modified
+      return print(options.help)
+    end
 
+    print_status("Reloading #{files.length} library #{'file'.pluralize(files.length)}...")
     files.each do |file|
       reload_file(file)
     rescue ScriptError, StandardError => e
@@ -323,9 +338,8 @@ class Msf::Ui::Console::CommandDispatcher::Developer
       print_warning("LocalPager or $PAGER/$MANPAGER should be set. Falling back on #{pager}.")
     end
 
-    # XXX: No vprint_status in this context?
-    # XXX: VERBOSE is a string instead of Bool??
-    print_status("Launching #{pager} #{path}") if framework.datastore['VERBOSE'].to_s == 'true'
+    # XXX: No vprint_status in this context
+    print_status("Launching #{pager} #{path}") if framework.datastore['VERBOSE']
 
     unless system(*pager.split, path)
       print_error("Could not execute #{pager} #{path}")
@@ -382,10 +396,73 @@ class Msf::Ui::Console::CommandDispatcher::Developer
   end
 
   def cmd__servicemanager_help
-    print_line 'Usage: servicemanager'
+    print_line 'Usage: _servicemanager'
     print_line
     print_line 'Manage running framework services'
     print @@_servicemanager_opts.usage
+    print_line
+  end
+
+  #
+  # Interact with framework's history manager
+  #
+  def cmd__historymanager(*args)
+    if args.include?('-h') || args.include?('--help')
+      cmd__historymanager_help
+      return false
+    end
+
+    opts = {}
+    @@_historymanager_opts.parse(args) do |opt, idx, val|
+      case opt
+      when '-l', '--list'
+        opts[:list] = true
+      when '-d', '--debug'
+        opts[:debug] = val.nil? ? true : val.downcase.start_with?(/t|y/)
+      end
+    end
+
+    if opts.empty?
+      opts[:list] = true
+    end
+
+    if opts.key?(:debug)
+      framework.history_manager._debug = opts[:debug]
+      print_status("HistoryManager debugging is now #{opts[:debug] ? 'on' : 'off'}")
+    end
+
+    if opts[:list]
+      table = Rex::Text::Table.new(
+        'Header'  => 'History contexts',
+        'Indent'  => 1,
+        'Columns' => ['Id', 'File', 'Name']
+      )
+      framework.history_manager._contexts.each.with_index do |context, id|
+        table << [id, context[:history_file], context[:name]]
+      end
+
+      if table.rows.empty?
+        print_status("No history contexts present.")
+      else
+        print_line(table.to_s)
+      end
+    end
+  end
+
+  #
+  # Tab completion for the _historymanager command
+  #
+  def cmd__historymanager_tabs(_str, words)
+    return [] if words.length > 1
+
+    @@_historymanager_opts.option_keys
+  end
+
+  def cmd__historymanager_help
+    print_line 'Usage: _historymanager'
+    print_line
+    print_line 'Manage the history manager'
+    print @@_historymanager_opts.usage
     print_line
   end
 
@@ -405,7 +482,7 @@ class Msf::Ui::Console::CommandDispatcher::Developer
 
     begin
       start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      command = args.join(' ')
+      command = Shellwords.shelljoin(args)
 
       case profiler
       when '--cpu'
@@ -442,20 +519,36 @@ class Msf::Ui::Console::CommandDispatcher::Developer
     print_line
   end
 
-  private
+  protected
+
+  def source_directories
+    [Msf::Config.install_root]
+  end
 
   def modified_files
     # Using an array avoids shelling out, so we avoid escaping/quoting
-    changed_files = %w[git diff --name-only]
-    begin
-      output, status = Open3.capture2e(*changed_files, chdir: Msf::Config.install_root)
-      is_success = status.success?
-      output = output.split("\n")
-    rescue => e
-      elog(e)
-      output = []
-      is_success = false
+    # --diff-filter=d excludes deleted files that would fail realpath resolution
+    changed_files = %w[git diff --name-only --diff-filter=d]
+
+    is_success = true
+    files = []
+    source_directories.each do |directory|
+      begin
+        output, status = Open3.capture2e(*changed_files, chdir: directory)
+        is_success = status.success?
+        break unless is_success
+
+        files += output.split("\n").map do |path|
+          realpath = Pathname.new(directory).join(path).realpath
+          raise "invalid path" unless realpath.to_s.start_with?(directory)
+          realpath.to_s
+        end
+      rescue => e
+        elog(e)
+        is_success = false
+        break
+      end
     end
-    return output, is_success
+    [files, is_success]
   end
 end

@@ -7,8 +7,44 @@
 module Msf::Modules::Metadata::Search
 
   VALID_PARAMS =
-      %w[aka author authors arch cve bid edb check date disclosure_date description fullname fullname mod_time
-      name os platform path port rport rank ref ref_name reference references target targets text type]
+    %w[
+      action
+      adapter
+      aka
+      arch
+      attack
+      att&ck
+      author
+      authors
+      bid
+      check
+      cve
+      date
+      description
+      disclosure_date
+      edb
+      fullname
+      mod_time
+      name
+      os
+      osvdb
+      path
+      platform
+      port
+      rank
+      ref
+      ref_name
+      reference
+      references
+      rport
+      session_type
+      stage
+      stager
+      target
+      targets
+      text
+      type
+    ]
 
   #
   # Module Type Shorthands
@@ -35,7 +71,7 @@ module Msf::Modules::Metadata::Search
     search_string += ' '
 
     # Split search terms by space, but allow quoted strings
-    terms = search_string.split(/\"/).collect{|term| term.strip==term ? term : term.split(' ')}.flatten
+    terms = search_string.split('"').collect{|term| term.strip==term ? term : term.split(' ')}.flatten
     terms.delete('')
 
     # All terms are either included or excluded
@@ -43,7 +79,7 @@ module Msf::Modules::Metadata::Search
 
     terms.each do |term|
       # Split it on the `:`, with the part before the first `:` going into keyword, the part after first `:`
-      # but before any later instances of `:` going into search_term, and the characters after the second 
+      # but before any later instances of `:` going into search_term, and the characters after the second
       # `:` or later in the string going into _excess to be ignored.
       #
       # Example is `use exploit/linux/local/nested_namespace_idmap_limit_priv_esc::a`
@@ -55,20 +91,23 @@ module Msf::Modules::Metadata::Search
         keyword = 'text'
       end
       next if search_term.length == 0
-      keyword.downcase!
-      search_term.downcase!
+      keyword = keyword.downcase
+      search_term = search_term.downcase
 
-      if keyword == "type"
-        search_term = MODULE_TYPE_SHORTHANDS[search_term] if MODULE_TYPE_SHORTHANDS.key?(search_term)
-      end
-
-      res[keyword] ||=[   [],    []   ]
-      if search_term[0,1] == "-"
+      res[keyword] ||= [[], []]
+      mode = SearchMode::INCLUDE
+      if search_term.start_with?('-')
         next if search_term.length == 1
-        res[keyword][SearchMode::EXCLUDE] << search_term[1,search_term.length-1]
-      else
-        res[keyword][SearchMode::INCLUDE] << search_term
+
+        search_term = search_term[1..]
+        mode = SearchMode::EXCLUDE
       end
+
+      if keyword == 'type' && MODULE_TYPE_SHORTHANDS.key?(search_term)
+        search_term = MODULE_TYPE_SHORTHANDS[search_term]
+      end
+
+      res[keyword][mode] << search_term
     end
     res
   end
@@ -80,8 +119,11 @@ module Msf::Modules::Metadata::Search
     raise ArgumentError if params.any? && VALID_PARAMS.none? { |k| params.key?(k) }
     search_results = []
 
+    regex_cache = Hash.new do |hash, search_term|
+      hash[search_term] = as_regex(search_term)
+    end
     get_metadata.each { |module_metadata|
-      if is_match(params, module_metadata)
+      if is_match(params, module_metadata, regex_cache)
         unless fields.empty?
           module_metadata = get_fields(module_metadata, fields)
         end
@@ -95,7 +137,7 @@ module Msf::Modules::Metadata::Search
   private
   #######
 
-  def is_match(params, module_metadata)
+  def is_match(params, module_metadata, regex_cache)
     return true if params.empty?
 
     param_hash = params
@@ -108,14 +150,15 @@ module Msf::Modules::Metadata::Search
         # free form text search will honor 'and' semantics, i.e. 'metasploit pro' will only match modules that contain both
         # words, and will return false when only one word is matched
         if keyword == 'text'
-          text_segments = [module_metadata.name, module_metadata.fullname, module_metadata.description] + module_metadata.references + module_metadata.author + (module_metadata.notes['AKA'] || [])
+          module_actions = (module_metadata.actions || []).flat_map { |action| action.values.map(&:to_s) }
+          text_segments = [module_metadata.name, module_metadata.fullname, module_metadata.description] + module_metadata.references + module_metadata.author + (module_metadata.notes['AKA'] || []) + module_actions
 
           if module_metadata.targets
             text_segments = text_segments + module_metadata.targets
           end
 
           param_hash[keyword][mode].each do |search_term|
-            has_match = text_segments.any? { |text_segment| text_segment =~ as_regex(search_term) }
+            has_match = text_segments.any? { |text_segment| text_segment =~ regex_cache[search_term] }
             match = [keyword, search_term] if has_match
             if mode == SearchMode::INCLUDE && !has_match
               return false
@@ -134,8 +177,10 @@ module Msf::Modules::Metadata::Search
           # Reset the match flag for each keyword for inclusive search
           match = false if mode == SearchMode::INCLUDE
 
-          regex = as_regex(search_term)
+          regex = regex_cache[search_term]
           case keyword
+            when 'action'
+              match = [keyword, search_term] if (module_metadata&.actions || []).any? { |action| action.any? { |k, v| k =~ regex || v =~ regex } }
             when 'aka'
               match = [keyword, search_term] if (module_metadata.notes['AKA'] || []).any? { |aka| aka =~ regex }
             when 'author', 'authors'
@@ -143,11 +188,16 @@ module Msf::Modules::Metadata::Search
             when 'arch'
               match = [keyword, search_term] if module_metadata.arch =~ regex
             when 'cve'
-              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref =~ /^cve\-/i and ref =~ regex }
+              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref.downcase.start_with?('cve-') && ref =~ regex }
+            when 'att&ck', 'attack'
+              regex = Regexp.new("\\A#{Regexp.escape(search_term)}(\\.\\d+)*\\Z", Regexp::IGNORECASE)
+              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref.downcase.start_with?('att&ck-') && ref.downcase.delete_prefix('att&ck-') =~ regex }
+            when 'osvdb'
+              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref.downcase.start_with?('osvdb-') && ref =~ regex }
             when 'bid'
-              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref =~ /^bid\-/i and ref =~ regex }
+              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref.downcase.start_with?('bid-') && ref =~ regex }
             when 'edb'
-              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref =~ /^edb\-/i and ref =~ regex }
+              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref.downcase.start_with?('edb-') && ref =~ regex }
             when 'check'
               if module_metadata.check
                 matches_check = %w(true yes).any? { |val| val =~ regex}
@@ -172,6 +222,14 @@ module Msf::Modules::Metadata::Search
               end
             when 'path'
               match = [keyword, search_term] if module_metadata.fullname =~ regex
+            when 'stage'
+              match = [keyword, search_term] if module_metadata.stage_refname =~ regex
+            when 'stager'
+              match = [keyword, search_term] if module_metadata.stager_refname =~ regex
+            when 'adapter'
+              match = [keyword, search_term] if module_metadata.adapter_refname =~ regex
+            when 'session_type'
+              match = [keyword, search_term] if module_metadata.session_types && module_metadata.session_types.any? { |session_type| session_type =~ regex }
             when 'port', 'rport'
               match = [keyword, search_term] if module_metadata.rport.to_s =~ regex
             when 'rank'
@@ -205,9 +263,9 @@ module Msf::Modules::Metadata::Search
             when 'ref', 'ref_name'
               match = [keyword, search_term] if module_metadata.ref_name =~ regex
             when 'reference', 'references'
-              match = [keyword, search_term] if module_metadata.references.any? { |ref| ref =~ regex }
+              match = [keyword, search_term] if module_metadata.references && module_metadata.references.any? { |ref| ref =~ regex }
             when 'target', 'targets'
-              match = [keyword, search_term] if module_metadata.targets.any? { |target| target =~ regex }
+              match = [keyword, search_term] if module_metadata.targets && module_metadata.targets.any? { |target| target =~ regex }
             when 'type'
               match = [keyword, search_term] if Msf::MODULE_TYPES.any? { |module_type| search_term == module_type and module_metadata.type == module_type }
           else
@@ -232,7 +290,7 @@ module Msf::Modules::Metadata::Search
 
   def as_regex(search_term)
     # Convert into a case-insensitive regex
-    utf8_buf = search_term.dup.force_encoding('UTF-8')
+    utf8_buf = search_term.to_s.dup.force_encoding('UTF-8')
     if utf8_buf.valid_encoding?
        Regexp.new(Regexp.escape(utf8_buf), Regexp::IGNORECASE)
     else
@@ -247,6 +305,7 @@ module Msf::Modules::Metadata::Search
     aliases = {
         :cve => 'references',
         :edb => 'references',
+        :osvdb => 'references',
         :bid => 'references',
         :os => 'platform',
         :port => 'rport',
@@ -267,4 +326,3 @@ module Msf::Modules::Metadata::Search
   end
 
 end
-

